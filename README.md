@@ -1,1 +1,1 @@
-# erp-bundle
+# Morze ERP :: Standalone Bundle
