@@ -1,0 +1,7 @@
+images:
+  backend:
+    digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  migrations:
+    digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  postgres:
+    digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

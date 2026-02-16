@@ -1,0 +1,71 @@
+schemaType: Bundle
+schemaVersion: 1.0.1
+
+# ....................... #
+# Metadata
+
+name: erp-bundle
+version: 0.0.0
+registry: ghcr.io/morzecrew
+
+# ....................... #
+# High-level configuration
+
+dockerfile: Dockerfile
+mixins:
+  - exec
+
+# ....................... #
+# Images
+
+images:
+  backend:
+    imageType: docker
+    repository: ghcr.io/morzecrew/erp-backend
+    digest: __LOCK__
+  
+  migrations:
+    imageType: docker
+    repository: ghcr.io/morzecrew/erp-migrations
+    digest: __LOCK__
+
+  postgres:
+    imageType: docker
+    repository: ghcr.io/morzecrew/erp-postgres
+    digest: __LOCK__
+
+# ....................... #
+# Credentials
+
+# ....................... #
+# Commands
+
+install:
+  - exec:
+      envs:
+        BACKEND_IMAGE: ${ bundle.images.backend.repository }@${ bundle.images.backend.digest }
+        MIGRATIONS_IMAGE: ${ bundle.images.migrations.repository }@${ bundle.images.migrations.digest }
+        POSTGRES_IMAGE: ${ bundle.images.postgres.repository }@${ bundle.images.postgres.digest }
+      description: Install bundle
+      command: just
+      arguments: [install]
+  
+upgrade:
+  - exec:
+      envs:
+        BACKEND_IMAGE: ${ bundle.images.backend.repository }@${ bundle.images.backend.digest }
+        MIGRATIONS_IMAGE: ${ bundle.images.migrations.repository }@${ bundle.images.migrations.digest }
+        POSTGRES_IMAGE: ${ bundle.images.postgres.repository }@${ bundle.images.postgres.digest }
+      description: Upgrade bundle
+      command: just
+      arguments: [upgrade]
+
+uninstall:
+  - exec:
+      envs:
+        BACKEND_IMAGE: ${ bundle.images.backend.repository }@${ bundle.images.backend.digest }
+        MIGRATIONS_IMAGE: ${ bundle.images.migrations.repository }@${ bundle.images.migrations.digest }
+        POSTGRES_IMAGE: ${ bundle.images.postgres.repository }@${ bundle.images.postgres.digest }
+      description: Uninstall bundle
+      command: just
+      arguments: [uninstall]
