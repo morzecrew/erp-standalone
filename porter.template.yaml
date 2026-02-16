@@ -4,9 +4,9 @@ schemaVersion: 1.0.1
 # ....................... #
 # Metadata
 
-name: erp-bundle
+name: standalone
 version: 0.0.0
-registry: ghcr.io/morzecrew
+registry: ghcr.io/morzecrew/erp
 
 # ....................... #
 # High-level configuration
@@ -21,17 +21,17 @@ mixins:
 images:
   backend:
     imageType: docker
-    repository: ghcr.io/morzecrew/erp-backend
+    repository: ghcr.io/morzecrew/erp/backend
     digest: __LOCK__
   
   migrations:
     imageType: docker
-    repository: ghcr.io/morzecrew/erp-migrations
+    repository: ghcr.io/morzecrew/erp/migrations
     digest: __LOCK__
 
   postgres:
     imageType: docker
-    repository: ghcr.io/morzecrew/erp-postgres
+    repository: ghcr.io/morzecrew/erp/postgres
     digest: __LOCK__
 
 # ....................... #
