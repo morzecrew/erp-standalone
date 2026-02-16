@@ -62,6 +62,13 @@ parameters:
     type: integer
     default: 8030
     description: Port for the gateway
+    env: GATEWAY_PORT
+  
+  - name: namespace
+    type: string
+    default: erp
+    description: Namespace for the services
+    env: COMPOSE_PROJECT_NAME
 
 # ....................... #
 # Commands
@@ -73,7 +80,6 @@ install:
         BACKEND_IMAGE: ${ bundle.images.backend.repository }@${ bundle.images.backend.digest }
         MIGRATIONS_IMAGE: ${ bundle.images.migrations.repository }@${ bundle.images.migrations.digest }
         POSTGRES_IMAGE: ${ bundle.images.postgres.repository }@${ bundle.images.postgres.digest }
-        GATEWAY_PORT: ${ bundle.parameters.port }
       description: Install bundle
       command: just
       arguments: 
@@ -86,7 +92,6 @@ upgrade:
         BACKEND_IMAGE: ${ bundle.images.backend.repository }@${ bundle.images.backend.digest }
         MIGRATIONS_IMAGE: ${ bundle.images.migrations.repository }@${ bundle.images.migrations.digest }
         POSTGRES_IMAGE: ${ bundle.images.postgres.repository }@${ bundle.images.postgres.digest }
-        GATEWAY_PORT: ${ bundle.parameters.port }
       description: Upgrade bundle
       command: just
       arguments:
@@ -99,7 +104,6 @@ uninstall:
         BACKEND_IMAGE: ${ bundle.images.backend.repository }@${ bundle.images.backend.digest }
         MIGRATIONS_IMAGE: ${ bundle.images.migrations.repository }@${ bundle.images.migrations.digest }
         POSTGRES_IMAGE: ${ bundle.images.postgres.repository }@${ bundle.images.postgres.digest }
-        GATEWAY_PORT: ${ bundle.parameters.port }
       description: Uninstall bundle
       command: just
       arguments: 
