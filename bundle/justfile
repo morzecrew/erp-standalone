@@ -1,0 +1,26 @@
+set quiet
+set shell := ["bash", "-cu"]
+
+# ----------------------- #
+
+_nrdir := "/home/nonroot"
+_secrets_env := _nrdir / "secrets_env"
+_flags := "--env-file " + _secrets_env
+
+export BUNDLE_DIR := "/cnab/app"
+
+# ----------------------- #
+
+install:
+    docker compose {{ _flags }} up -d --build
+
+upgrade:
+    docker compose {{ _flags }} up -d --build
+
+uninstall wipe='':
+    @echo "Wiping volumes: {{ wipe }}"
+    if [ "{{ wipe }}" = "true" ]; then \
+        docker compose {{ _flags }} down --volumes --remove-orphans; \
+    else \
+        docker compose {{ _flags }} down; \
+    fi

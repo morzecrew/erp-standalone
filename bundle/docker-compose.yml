@@ -143,6 +143,32 @@ services:
   backend:
     <<: *service
     image: ${BACKEND_IMAGE:?}
+    command: |
+      uvicorn api.app:create_app 
+        --factory
+        --host 0.0.0.0 
+        --port 80 
+        --proxy-headers 
+        --forwarded-allow-ips="*"
+        --root-path /api
+    
+  # ....................... #
+
+  frontend:
+    <<: *service
+    image: ${FRONTEND_IMAGE:?}
+
+  # ....................... #
+
+  gateway:
+    <<: *service
+    build:
+      context: ./caddy
+    volumes:
+      - caddy-data:/data
+
+    ports:
+      - ${GATEWAY_PORT:-8030}:80
   
 # ....................... #
 
@@ -154,4 +180,7 @@ volumes:
     driver: local
 
   minio-data:
+    driver: local
+  
+  caddy-data:
     driver: local

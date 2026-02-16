@@ -1,1 +1,4 @@
 .cnab/
+creds.yaml
+porter.yaml
+.env
