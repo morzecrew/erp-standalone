@@ -6,18 +6,20 @@ set shell := ["bash", "-cu"]
 _nrdir := "/home/nonroot"
 _secrets_env := _nrdir / "secrets_env"
 _flags := "--env-file " + _secrets_env
-
-export BUNDLE_DIR := "/cnab/app"
+_gh_token := _nrdir / "gh-token"
 
 # ----------------------- #
 
-install:
+login:
+    echo $(cat {{ _gh_token }}) | docker login ghcr.io -u dummy --password-stdin
+
+install: login
     docker compose {{ _flags }} up -d --build
 
-upgrade:
+upgrade: login
     docker compose {{ _flags }} up -d --build
 
-uninstall wipe='':
+uninstall wipe='': login
     @echo "Wiping volumes: {{ wipe }}"
     if [ "{{ wipe }}" = "true" ]; then \
         docker compose {{ _flags }} down --volumes --remove-orphans; \

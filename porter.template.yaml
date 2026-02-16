@@ -43,8 +43,11 @@ images:
 # Credentials
 
 credentials:
-  - name: secrets_env
+  - name: secrets-env
     path: /home/nonroot/secrets_env
+
+  - name: gh-token
+    path: /home/nonroot/gh-token
 
 # ....................... #
 # Parameters

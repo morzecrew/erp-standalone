@@ -2,3 +2,4 @@
 creds.yaml
 porter.yaml
 .env
+.gh-token
