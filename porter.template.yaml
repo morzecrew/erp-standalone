@@ -11,7 +11,7 @@ registry: ghcr.io/morzecrew/erp
 # ....................... #
 # High-level configuration
 
-dockerfile: tpl.Dockerfile
+dockerfile: dockerfile.tpl
 mixins:
   - exec
 
@@ -34,44 +34,59 @@ images:
     repository: ghcr.io/morzecrew/erp/migrations
     digest: __LOCK__
 
-  postgres:
-    imageType: docker
-    repository: ghcr.io/morzecrew/erp/postgres
-    digest: __LOCK__
-
 # ....................... #
 # Credentials
 
 credentials:
   - name: secrets-env
     path: /home/nonroot/secrets_env
+    applyTo:
+      - install
+      - upgrade
 
   - name: gh-token
     path: /home/nonroot/gh-token
+    applyTo:
+      - install
+      - upgrade
 
 # ....................... #
 # Parameters
 
 parameters:
-  - name: destroy-volumes
-    type: boolean
-    default: false
-    description: Wipe volumes on uninstall
-
   - name: port
     type: integer
     default: 8030
     description: Port for the gateway
     env: GATEWAY_PORT
+    applyTo:
+      - install
+      - upgrade
   
   - name: namespace
     type: string
     default: erp
     description: Namespace for the services
     env: COMPOSE_PROJECT_NAME
+    applyTo:
+      - install
+      - upgrade
+      - uninstall
 
 # ....................... #
 # Commands
+
+customActions:
+  scaffold:
+    stateless: true
+    modifies: false
+
+scaffold:
+  - exec:
+      command: bash
+      arguments:
+        - -ceu
+        - cp -n /scaffold/* /out/
 
 install:
   - exec:
@@ -79,7 +94,6 @@ install:
         FRONTEND_IMAGE: ${ bundle.images.frontend.repository }@${ bundle.images.frontend.digest }
         BACKEND_IMAGE: ${ bundle.images.backend.repository }@${ bundle.images.backend.digest }
         MIGRATIONS_IMAGE: ${ bundle.images.migrations.repository }@${ bundle.images.migrations.digest }
-        POSTGRES_IMAGE: ${ bundle.images.postgres.repository }@${ bundle.images.postgres.digest }
       description: Install bundle
       command: just
       arguments: 
@@ -91,7 +105,6 @@ upgrade:
         FRONTEND_IMAGE: ${ bundle.images.frontend.repository }@${ bundle.images.frontend.digest }
         BACKEND_IMAGE: ${ bundle.images.backend.repository }@${ bundle.images.backend.digest }
         MIGRATIONS_IMAGE: ${ bundle.images.migrations.repository }@${ bundle.images.migrations.digest }
-        POSTGRES_IMAGE: ${ bundle.images.postgres.repository }@${ bundle.images.postgres.digest }
       description: Upgrade bundle
       command: just
       arguments:
@@ -103,9 +116,7 @@ uninstall:
         FRONTEND_IMAGE: ${ bundle.images.frontend.repository }@${ bundle.images.frontend.digest }
         BACKEND_IMAGE: ${ bundle.images.backend.repository }@${ bundle.images.backend.digest }
         MIGRATIONS_IMAGE: ${ bundle.images.migrations.repository }@${ bundle.images.migrations.digest }
-        POSTGRES_IMAGE: ${ bundle.images.postgres.repository }@${ bundle.images.postgres.digest }
       description: Uninstall bundle
       command: just
       arguments: 
         - uninstall
-        - ${ bundle.parameters.destroy-volumes }

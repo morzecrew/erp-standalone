@@ -17,7 +17,7 @@ x-healthcheck: &healthcheck
 services:
   postgres:
     <<: *service
-    image: ${POSTGRES_IMAGE:?}
+    image: ghcr.io/morzecrew/pg:18.1-cron-pgroonga
     volumes:
         - postgres-data:/var/lib/postgresql/docker
     
