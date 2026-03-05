@@ -8,16 +8,16 @@ x-service: &service
 # ....................... #
 
 x-healthcheck: &healthcheck
-  interval: 3s
-  timeout: 1s
-  retries: 30
+  interval: 10s
+  timeout: 5s
+  retries: 5
 
 # ....................... #
 
 services:
   postgres:
     <<: *service
-    image: ghcr.io/morzecrew/pg:18.1-cron-pgroonga
+    image: ghcr.io/morzecrew/postgres:18-cron-pgroonga
     volumes:
         - postgres-data:/var/lib/postgresql/docker
     
@@ -58,6 +58,12 @@ services:
 
       ADMIN_USERS: ${POSTGRES_USER:?}
       STATS_USERS: ${POSTGRES_USER:?}
+    
+    healthcheck:
+      <<: *healthcheck
+      test:
+        - CMD-SHELL
+        - pg_isready -h localhost -p 6432 -U $$DB_USER || psql -p 6432 -U $$DB_USER pgbouncer -b -c 'SHOW USERS' >/dev/null
   
   # ....................... #
 
@@ -143,14 +149,66 @@ services:
   backend:
     <<: *service
     image: ${BACKEND_IMAGE:?}
-    command: |
-      uvicorn api.app:create_app 
-        --factory
-        --host 0.0.0.0 
-        --port 80 
-        --proxy-headers 
-        --forwarded-allow-ips="*"
-        --root-path /api
+    command: api
+    depends_on: &backend_deps
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    
+    environment: &backend_env
+      # Postgres
+      POSTGRES__USER: ${POSTGRES__USER:?}
+      POSTGRES__PASSWORD: ${POSTGRES__PASSWORD:?}
+      POSTGRES__DATABASE: ${POSTGRES__DATABASE:?}
+      POSTGRES__HOST: postgres
+      POSTGRES__PORT: 5432
+      POSTGRES__USE_PGBOUNCER: ${POSTGRES__USE_PGBOUNCER:?}
+      POSTGRES__PGBOUNCER_HOST: pgbouncer
+      POSTGRES__PGBOUNCER_PORT: 6432
+
+      # Redis
+      REDIS__PASSWORD: ${REDIS__PASSWORD:?}
+      REDIS__HOST: valkey
+      REDIS__PORT: 6379
+
+      # S3
+      S3__USER: ${S3__USER:?}
+      S3__PASSWORD: ${S3__PASSWORD:?}
+      S3__HOST: minio
+      S3__PORT: 9000
+
+      # Temporal
+      TEMPORAL__HOST: temporal
+      TEMPORAL__PORT: 7233
+
+      # API
+      API__PORT: 80
+      API__WORKERS: 4
+      API__ROOT_PATH: /api
+
+    healthcheck:
+      <<: *healthcheck
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)"
+  
+  # ....................... #
+
+  background:
+    <<: *service
+    image: ${BACKEND_IMAGE:?}
+    command: bg
+    depends_on: *backend_deps
+    environment: *backend_env
     
   # ....................... #
 

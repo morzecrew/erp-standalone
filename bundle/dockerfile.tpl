@@ -26,6 +26,8 @@ RUN chmod +x /tmp/provision.sh \
 # PORTER_MIXINS
 
 # Copy only the bundle payload into the CNAB working dir
-COPY ./bundle ${BUNDLE_DIR}
+COPY ./stack ${BUNDLE_DIR}
 COPY ./porter.yaml ${BUNDLE_DIR}
 COPY ./scaffold /scaffold
+
+RUN chmod -R a+rwX /scaffold

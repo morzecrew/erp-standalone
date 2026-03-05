@@ -21,17 +21,17 @@ mixins:
 images:
   frontend:
     imageType: docker
-    repository: ghcr.io/morzecrew/erp/frontend
+    repository: ghcr.io/morzecrew/erp-frontend
     digest: __LOCK__
 
   backend:
     imageType: docker
-    repository: ghcr.io/morzecrew/erp/backend
+    repository: ghcr.io/morzecrew/erp-backend
     digest: __LOCK__
   
   migrations:
     imageType: docker
-    repository: ghcr.io/morzecrew/erp/migrations
+    repository: ghcr.io/morzecrew/erp-migrations
     digest: __LOCK__
 
 # ....................... #
