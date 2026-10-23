@@ -1,0 +1,160 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0001
+title: >-
+  erp-standalone as a morzer release bundle of the whole ERP
+kind: design
+change:
+  type: feat
+  scope: bundle
+status: draft
+implementation: none
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  erp-standalone becomes a morzer 0.6.0 release bundle named `erp`, holding erp-backend, erp-frontend and their infrastructure behind one Caddy edge. CI publishes it to `ghcr.io/morzecrew/erp-standalone` as a rolling `main` dev channel, rebuilt whenever a component's `main` image moves, and as immutable `X.Y.Z` releases with a rolling `stable` channel, cut by a tag.
+
+  Four phases in a line, except the README: the bundle and its local smoke test, then the pinning scripts, then the workflows, then the README and changelog.
+motivation: |-
+  The repository held a Porter/CNAB attempt and a tarball work in progress, neither finished. The owner agreed to start from an empty tree. morzer is now the installer: it verifies a signed bundle, renders secrets as files, runs the migrations, checks health, backs up, and updates a machine unattended along a channel. What an operator needs from this repository is a bundle morzer accepts and a pipeline that proves each one before a machine that follows `main` can take it.
+
+  The components already do their half. erp-backend publishes `erp-backend` and `erp-migrations`, and erp-frontend publishes `erp-frontend`, each tagged `main`, `sha-<7>` and later `X.Y.Z`. Each tells this repository with a `repository_dispatch` of type `component-published` when its `main` moves.
+current_state: |-
+  - The tree is empty apart from `.torve/`: the adoption pull request removed the Porter bundle, its scaffold and stack, the tarball manifests and schemas, and their scripts. Nothing carries over.
+  - morzer 0.6.0 (2026-10-20) is the latest release. Since the 0.4.0 the first brief targeted, a secret's schema entry takes `owner`, `release prune` removes a pruned release's images, old pre-update backups are pruned to three, the update timer's units set `HOME`, a migrate `runtime-service` step receives the hook variables, and `runtime:` and every operation other than `migrate`, `smoke_test`, `backup` and `restore` are refused.
+  - Every morzecrew repository is private on GitHub's free plan. A private repository there has no environments, required reviewers, branch protection or rulesets.
+  - platform-images publishes `postgres:18.6`, `pgbouncer:1.26.1`, `valkey:9.1`, `rustfs:1.0.3`, `flyway:13.11` and `caddy:2.11.7` under `ghcr.io/morzecrew/`, each reading its credentials from a `*_FILE` variable. `valkey:9.2` was withdrawn: it was built on 9.2.0-rc1, whose RDB format 9.1 cannot read. The caddy image's Coraza WAF now loads the OWASP CRS, follows `CADDY_REQUEST_BODY_MAX_SIZE` for its own body limit, and turns automatic HTTPS on with `CADDY_AUTO_HTTPS: on`.
+  - The backend image resolves seven `*_FILE` variables through `envfile-exec`, which exits 78 when a named file cannot be read. It runs as uid 65532, the frontend as `caddy`, rustfs as uid 10001, and pgbouncer as the image's `postgres` user, which PgBouncer needs: it refuses to run as root.
+  - The org's free plan allows about 500 MB of private package storage and 1 GB of transfer a month outside Actions; not measured.
+goals: |-
+  - `morzer init` and `apply` on a fresh VM bring up the ERP behind one origin over HTTPS, with migrations at the schema the migrations image declares and an admin made from `admin_password`. A second `apply` changes nothing.
+  - A component's merge to `main` becomes, within minutes, a pin commit here and a signed `erp-standalone:<X.Y.Z-dev.N.g…>` with `:main` on it, smoke-tested on a fresh install and on an update before it is published.
+  - A tag `vX.Y.Z` publishes `:X.Y.Z` and `:stable`, made only of released components, signed with the release key, with a GitHub release that lists them.
+  - The README says how to install, update, roll back, back up and restore, on both channels.
+non_goals: |-
+  - Tuning the WAF. It runs off (D-11); turning it on with the rules this application needs is its own document.
+  - A backup hook with `pg_dump`. The first release backs up cold volumes (D-14).
+  - A customer VM's set-up beyond what the README states, and the dev VM itself, which the owner sets up by hand once the first `:main` is published.
+  - Changes to erp-backend, erp-frontend, platform-images or morzer. What this document needs from them is a question or a request, not a phase.
+design:
+  - key: the-bundle
+    md: |-
+      `bundle/` is an `application-release` named `erp`, so Compose sees `ERP_IMAGE_<KEY>`, `ERP_PARAM_<NAME>`, `ERP_SECRETS_DIR`, `ERP_RELEASE_DIR`, `ERP_DOMAIN` and `ERP_VERSION`, and nothing else from the environment. Every image is pinned as `repo:tag@sha256:…` in `images:`, and the Compose file names images only through those variables (D-1, D-2).
+
+      The Compose project runs `postgres`, `pgbouncer`, `valkey`, `rustfs`, `backend` (`api`), `worker` (`bg`), `frontend` and `edge`, each `restart: unless-stopped`, and two one-shot services under `profiles: [ops]`, which `up` leaves out and `docker compose run` still reaches: `flyway`, which migrates from the migrations image mounted at `/flyway/sql`, and `bootstrap`, the backend image's `bootstrap` command. The backend's environment is one YAML anchor shared by `backend`, `worker` and `bootstrap`; only `bootstrap` adds the admin password (D-7).
+
+      `operations.migrate` runs `flyway`, then `bootstrap`, as `runtime-service` steps on every `apply` and update before services start. `smoke_test` is a hook that probes the edge's loopback health port. There is no seed.
+  - key: secrets-and-users
+    md: |-
+      morzer renders each secret to a `0400` file in a tmpfs, owned by root unless the schema gives it an `owner`, and Compose bind-mounts it as it is. So a service reads a secret only as root or as its owner, and a secret has one owner (D-7).
+
+      postgres, valkey, flyway and caddy start as root and read any file. The backend services run as 65532, rustfs as 10001 and pgbouncer as its image's `postgres` user. Two secrets have two non-root readers: the database password (backend and pgbouncer) and the S3 key (backend and rustfs). morzer's answer is two declarations holding one value, set by the operator, since a generator makes a value per declaration (Q-1).
+  - key: the-edge
+    md: >-
+      `edge` runs the platform caddy image and is the only service that publishes
+      ports: HTTP, HTTPS, and a plain-HTTP health port on loopback for morzer's checks.
+      `/v1/*`, `/mcp*`, `/health` and `/.well-known/oauth-protected-resource*` go
+      to `backend:8000`; everything else goes to `frontend:8080`. One origin means
+      no CORS and no cookie domain. With `--domain`, Caddy gets its certificate itself
+      and redirects HTTP to HTTPS; the auth cookies are `Secure`, so a real installation
+      needs one (D-9, D-10). Bodies up to 51 MiB pass, for 50 MiB attachments (D-11).
+  - key: pinning-and-channels
+    md: |-
+      `scripts/resolve.sh` resolves a tag to its digest and reads the migrations image's `tech.morze.erp.schema` label; `scripts/pin.sh` writes the component digests and `database_schema_produces` into `bundle/manifest.yaml` (D-15).
+
+      `main.yml` runs on `component-published`, on a push to `bundle/**` or `components.yaml`, by hand, and every six hours. It re-resolves every component's `main`, commits a changed pin as the bot, builds with `--version-from-git`, signs with the dev key, smoke-tests a fresh install and an update, then publishes `:<version>` and moves `:main`. `release.yml` runs on a tag `vX.Y.Z` on main: it pins `components.yaml`'s versions, builds `X.Y.Z`, signs with the release key, smoke-tests, publishes `:X.Y.Z` and moves `:stable`. `pr.yml` builds and smoke-tests a pull request with a throwaway key and publishes nothing (D-16 to D-19).
+  - key: backups-and-rollback
+    md: >-
+      `backup.volumes` copies `postgres-data`, `valkey-data` and `rustfs-data` cold,
+      in one stop window, so Postgres and Valkey are captured together: Valkey holds
+      each document's `number_id` counter, which must be at least the numbers already
+      in Postgres. `edge-data` is copied hot. A schema change cannot be rolled back
+      automatically, because each release reads only the schema it produces (D-13,
+      D-14).
+tests: |-
+  - Phase 1: the `bundle-verify`, `compose-config`, `edge-smoke` and `shellcheck` gates arm on the bundle. `edge-smoke` runs the real infrastructure images and the edge on the task's nested Docker daemon, with stand-ins for the private component images (`tests/compose/stub.yaml`), and checks the routes, the health endpoint, and 50 MiB passing while 51 MiB gets 413.
+  - Phase 2: `tests/pin/run.sh` drives the pin scripts against fixtures with no network: pinning twice changes nothing, release mode refuses a `main` or `sha-*` tag, and the schema label lands in `database_schema_produces`.
+  - Phase 3: `actionlint` and `zizmor` over the workflows. The workflows' own proof is CI after merge: `pr.yml` on the next pull request, `main.yml` on the next `component-published`.
+  - The real components, migrations, sign-in and `morzer init`/`apply`/`update` run only in CI's smoke test, on the runner, as root.
+docs: >-
+  The README covers install, update, rollback, backup and restore with Postgres and
+  Valkey together, both channels, the secrets an operator sets, and the private registry
+  login. `bundle/RELEASE.md` is each bundle's release notes; `CHANGELOG.md` has one
+  section per bundle release.
+out_of_scope: ''
+risks: |-
+  - **Repository write access signs releases.** Both minisign keys are repository secrets, readable by any workflow pushed on any branch, and the dev VM applies what `:main` offers without asking. Anyone who can push here can ship code to the dev VM, and can sign a release. The owner accepted this on the free plan. Keep collaborators few, and rotate a key with `morzer release trust add|remove` if one leaks.
+  - **The WAF is off.** The edge passes every request the routes allow. Turning it on is a later document, tested against sign-in, saves and uploads.
+  - **Cold backups stop the data services.** Postgres, Valkey and RustFS are down for the copy. Postgres runs with small-instance settings so each copy stays near its data's size.
+  - **Agents cannot pull the component images**, which are private, so `edge-smoke` stands in for them. A change that breaks the real backend or frontend behind the edge shows only in CI's smoke test.
+  - **A schema change cannot be rolled back automatically.** A failed update after migrate needs a restore.
+  - **Rotating the database password** breaks the connection: Postgres reads its password file only at initdb. The README gives the `ALTER ROLE` steps.
+  - **Package storage and transfer** on the free plan are small. Bundles are kilobytes and the dev retention is tight; a component update pulls about 1 MB.
+sections:
+  - key: set-up-by-the-owner
+    md: |-
+      Done:
+
+      - erp-standalone reads the `erp-backend`, `erp-migrations` and `erp-frontend` packages under Manage Actions access.
+      - The GitHub App the component repositories dispatch with is installed here.
+      - Repository secrets `MINISIGN_DEV_KEY` and `MINISIGN_RELEASE_KEY` hold each password-less secret-key file; repository variables `MINISIGN_DEV_PUBKEY` and `MINISIGN_RELEASE_PUBKEY` hold each bare `RW…` public key.
+
+      To do:
+
+      - Push a seed tag `v0.0.0` on main before the workflows land: `--version-from-git` needs a reachable tag, and a later push of a `v*` tag would start `release.yml`.
+      - Check that the `GH_PAT` secret can delete packages (`delete:packages`); `retention.yml` fails with 401 otherwise.
+      - Give Renovate a `hostRules` token that reads the private packages, for `components.yaml`.
+      - Later, with the dev VM: a read-only `read:packages` token, `sudo docker login ghcr.io` with it, and `morzer init` as the README says.
+alternatives:
+  - option: >-
+      Porter and CNAB, or the tarball the repository held
+    rejected_because: >-
+      morzer is the installer the platform settled on: signed bundles, secrets as
+      files, migrate, health, backups and unattended updates along a channel.
+  - option: >-
+      The release key kept offline, signed by hand, then published by a dispatch
+    rejected_because: >-
+      The owner chose both keys as repository secrets (2026-10-23), accepting that
+      anyone who can push a branch can sign.
+  - option: >-
+      A `release` environment with a required reviewer guarding the release key
+    rejected_because: >-
+      Private repositories on the free plan have no environments; the API answers
+      403.
+  - option: The backend straight to Postgres, no PgBouncer
+    rejected_because: >-
+      The owner chose PgBouncer (2026-10-23): it is the topology erp-backend's e2e
+      tests, and it keeps the pools under `max_connections`.
+  - option: The WAF on from the first release
+    rejected_because: >-
+      The owner chose no WAF for now (2026-10-23); CRS at paranoia 1 refuses some
+      saves and caps a non-upload body at 512 KiB until it is tuned.
+  - option: erp-gateway as the edge
+    rejected_because: >-
+      It proxies only to the backend; the bundle needs one origin for both.
+  - option: A weekly `docker image prune -af` on the dev VM
+    rejected_because: >-
+      morzer 0.6.0 removes a pruned release's images itself, and the prune deletes
+      the previous release's images and the backup helper a rollback needs.
+questions:
+  - id: Q-1
+    text: >-
+      PgBouncer and the backend run as different non-root users, and a morzer secret
+      file has one owner, so they cannot read one `postgres_password` file. Which
+      way? (a) Two declarations, `postgres_password` (owner 65532) and `pgbouncer_password`
+      (owner of the pgbouncer image's user), and likewise `s3_secret_key` (65532)
+      and `rustfs_secret_key` (10001), all four without a generator; the operator
+      sets each pair from one value, as morzer's manifest reference advises. (b) The
+      backend, worker and bootstrap run as root until morzer can give one file to
+      two users. (c) No PgBouncer until then. Lean: (a). Every service but those whose
+      images start as root stays non-root, the README and CI's smoke test set each
+      pair with one command, and a mismatch fails the backend's start loudly. Ask
+      morzer for a group-readable secret so the pairs can merge later.
+  - id: Q-2
+    text: >-
+      Lock D-6 (Valkey durable) and D-18 (both keys as repository secrets)? Lean:
+      lock D-6, since a counter lost or evicted restarts document numbering; keep
+      D-18 ASSUMED until a release has been cut and signed once.
