@@ -18,6 +18,9 @@ phasing:
       D-1 to D-14 and D-23 to D-25.
     scope: [bundle/**, tests/compose/**]
     acceptance:
+      - >-
+        test -f bundle/manifest.yaml -a -f bundle/secrets.schema.yaml -a -f bundle/compose/compose.yaml
+        -a -f bundle/edge/erp.caddy -a -x bundle/hooks/smoke-test -a -f tests/compose/stub.yaml
       - bash .torve/gates/bundle-verify.sh
       - bash .torve/gates/compose-config.sh
       - shellcheck -S warning bundle/hooks/smoke-test
