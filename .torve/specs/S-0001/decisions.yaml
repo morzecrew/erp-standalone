@@ -1,0 +1,367 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      The bundle is a morzer `application-release` named `erp`, format `selfhost/v1alpha1`,
+      declaring `compatibility.min_manager_version: "0.6.0"`, Compose as its runtime
+      and `sops-age` for secrets. Its files are `bundle/manifest.yaml`, `secrets.schema.yaml`,
+      `compose/compose.yaml`, `edge/erp.caddy`, `hooks/smoke-test` and `RELEASE.md`.
+    paths: [bundle/manifest.yaml, bundle/RELEASE.md]
+    consequence: >-
+      Compose sees `ERP_IMAGE_<KEY>`, `ERP_PARAM_<NAME>`, `ERP_SECRETS_DIR`, `ERP_RELEASE_DIR`,
+      `ERP_DOMAIN` and `ERP_VERSION` and nothing else; a manager older than 0.6.0
+      says it is too old instead of failing on `owner`
+    rationale: >-
+      morzer 0.6.0 is the latest release and the first with secret `owner` (CHANGELOG
+      0.6.0), which every non-root reader here needs. Decoding is strict, so an unknown
+      field is an error, not a silent default.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      Every image is pinned as `repo:tag@sha256:<digest>` under `images:`, and the
+      Compose file names an image only as `${ERP_IMAGE_<KEY>}`. Until the pin scripts
+      run, the three component images carry their `main` tag and an all-zero digest.
+    paths: [bundle/manifest.yaml, bundle/compose/compose.yaml]
+    consequence: >-
+      morzer pulls exactly the pinned refs before migrate, and Renovate and the pin
+      scripts read the tag beside each digest
+    rationale: >-
+      morzer refuses a bare tag and accepts a tag with a digest (`internal/domain/manifest.go`).
+      Agents cannot read the private component packages, so the bundle phase cannot
+      resolve their digests; the pin scripts and CI do.
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The components are `backend` (`ghcr.io/morzecrew/erp-backend`), `migrations`
+      (`ghcr.io/morzecrew/erp-migrations`, SQL only, labelled `tech.morze.erp.schema`)
+      and `frontend` (`ghcr.io/morzecrew/erp-frontend`). `flyway` mounts the migrations
+      image at `/flyway/sql` as a Compose `type: image` volume with `subpath: flyway/sql`.
+    paths: [bundle/manifest.yaml, bundle/compose/compose.yaml]
+    consequence: >-
+      the migrations ship as data beside the flyway image, never baked into it, and
+      their schema number is readable without running them
+    rationale: >-
+      erp-backend #115 migrated 53 files to v0032 through this mount, by tag. A digest
+      source is what morzer substitutes, so phase 1 checks that form too.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The infrastructure images are `ghcr.io/morzecrew/postgres:18.6`, `pgbouncer:1.26.1`,
+      `valkey:9.1`, `rustfs:1.0.3`, `flyway:13.11` and `caddy:2.11.7`, each reading
+      its credential from a `*_FILE` variable.
+    paths: [bundle/manifest.yaml]
+    consequence: >-
+      one family of images with the same secret and settings conventions as erp-backend's
+      own compose stack
+    rationale: >-
+      `valkey:9.2` was built on 9.2.0-rc1, whose RDB 9.1 cannot read, and was withdrawn
+      (platform-images #70). Upstream `rustfs/rustfs` accepts its default credential;
+      the platform image refuses it. flyway moved to 13.11 in platform-images #96.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The backend, worker and bootstrap reach Postgres through `pgbouncer` (`POSTGRES__USE_PGBOUNCER:
+      "true"`, `POSTGRES__PGBOUNCER_HOST: pgbouncer`, `POSTGRES__PGBOUNCER_PORT: 6432`),
+      on the image's transaction pooling and pool of 30. `flyway` connects to `postgres`
+      directly.
+    paths: [bundle/compose/compose.yaml]
+    consequence: >-
+      the backend runs in the topology erp-backend's e2e suite tests, and its processes'
+      pools of 15 never exhaust Postgres's 60 connections however many API workers
+      run
+    rationale: >-
+      Owner's call (2026-10-23). Two API workers, the worker and bootstrap during
+      an update hold up to 60 pool connections, which is all of `max_connections`;
+      the pooler takes them all and opens at most 30. Flyway takes session locks,
+      which transaction pooling breaks.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Valkey is durable: `VALKEY_PERSISTENCE: aof`, `VALKEY_MAXMEMORY_POLICY: noeviction`,
+      `deploy.resources.limits.memory: 1g`, and a health check that authenticates
+      with its password file and expects `PONG`.
+    paths: [bundle/compose/compose.yaml]
+    consequence: >-
+      a crash loses at most a second of counter increments, a full memory refuses
+      writes instead of evicting a counter, and bootstrap waits for a valkey that
+      answers
+    rationale: >-
+      Every document's `number_id` comes from a valkey counter and is `UNIQUE` in
+      the schema, so a lost or evicted counter restarts numbering and every create
+      on its route fails. The image's defaults are a cache. Without a limit, `maxmemory`
+      falls back to 256 MiB.
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      Secrets reach containers only as files: each service lists the secrets it reads,
+      mounted at `/run/secrets/<name>` from `${ERP_SECRETS_DIR:-/run/erp/secrets}`,
+      and reads them through `*_FILE` variables; no service is given a secret as a
+      plain variable. A secret read by a non-root service is owned by that service's
+      user (`owner`), and two non-root readers get two declarations (Q-1). Only `bootstrap`
+      gets `admin_password` and `APP__ADMIN_PASSWORD_FILE`. `APP__VERSION` is not
+      set.
+    paths: [bundle/secrets.schema.yaml, bundle/compose/compose.yaml]
+    consequence: >-
+      every service starts without running as root unless its image starts as root,
+      and the backend and worker never name a file they are not given
+    rationale: >-
+      Compose ignores `uid`, `gid` and `mode` on a file secret, and morzer renders
+      `0400`. `envfile-exec` exits 78 on an unreadable file, so the admin password
+      in the shared anchor would stop the backend and worker. The image bakes its
+      own version.
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      `valkey_password` is generated (`password`); `access_secret_key`, `refresh_pepper`
+      and `api_key_pepper` are generated `base64` of 32 bytes; `admin_password` and
+      the paired database and S3 passwords are set by the operator. `api_key_pepper`
+      and the database passwords have no `rotation_period`.
+    paths: [bundle/secrets.schema.yaml]
+    consequence: >-
+      `doctor` reports an unset operator secret as a failure, and nothing suggests
+      rotating a secret whose rotation revokes every API key or breaks the database
+      login
+    rationale: >-
+      morzer's `base64` length is the count of random bytes, StdEncoding, which the
+      backend's `b64decode(validate=True)` reads. Postgres reads its password file
+      only at initdb.
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      `edge` is the only service that publishes ports. `bundle/edge/erp.caddy`, mounted
+      into the caddy image's `config.d`, sends `/v1`, `/v1/*`, `/mcp`, `/mcp/*`, `/health`
+      and `/.well-known/oauth-protected-resource*` to `backend:8000`, and everything
+      else to `frontend:8080`. `AUTH__COOKIE_DOMAIN` is empty and `AUTH__ALLOWED_ORIGINS`
+      is `[]`.
+    paths: [bundle/edge/**, bundle/compose/compose.yaml]
+    consequence: >-
+      one origin: no CORS and no cookie domain, and a remote MCP client finds its
+      metadata on the API's origin
+    rationale: >-
+      The frontend calls its own origin when `VITE_BACKEND_HOST` is unset. erp-gateway
+      proxies only to the backend, so it cannot be the edge.
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      The edge serves `${ERP_DOMAIN:-:80}, :8081` with `CADDY_AUTO_HTTPS: "on"`, publishes
+      `http_port` on 80, `https_port` on 443 and `health_port` on loopback 8081, and
+      keeps certificates in the `edge-data` volume.
+    paths: [bundle/compose/compose.yaml]
+    consequence: >-
+      with `--domain`, HTTPS on the domain and HTTP redirected to it; without one,
+      plain HTTP for CI's smoke test, which never signs in; morzer's checks always
+      reach plain HTTP on loopback
+    rationale: >-
+      The auth cookies are `Secure`, so a browser signs in only over HTTPS. The caddy
+      image's `on` leaves automatic HTTPS on (platform-images #69). Losing `edge-data`
+      means a new certificate and Let's Encrypt's rate limits.
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      `CADDY_REQUEST_BODY_MAX_SIZE` is `51MiB`, and `CADDY_WAF_ENGINE` is `DetectionOnly`.
+    paths: [bundle/compose/compose.yaml]
+    consequence: >-
+      a 50 MiB attachment passes and anything past 51 MiB gets 413; the WAF blocks
+      nothing and logs what CRS would refuse, which is the evidence a later document
+      tunes it from
+    rationale: >-
+      erp-backend #122 raised its gateway to 51 MiB for 50 MiB attachments, and the
+      caddy image's WAF follows this limit. The owner chose no WAF for now (2026-10-23);
+      the image refuses any value but `On` and `DetectionOnly`, and `DetectionOnly`
+      blocks nothing.
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      `operations.migrate` is `runtime-service` `flyway` (15 m) then `bootstrap` (5
+      m); `smoke_test` is the hook `hooks/smoke-test` (5 m), which probes `/__platform_healthz`,
+      `/health`, `/v1/openapi.json` and `/` on `127.0.0.1:${ERP_PARAM_HEALTH_PORT}`.
+      No step seeds data.
+    paths: [bundle/manifest.yaml, bundle/hooks/**]
+    consequence: >-
+      every `apply` and update migrates and keeps the catalogs and admin that exist
+      before services start; any failure is exit 12
+    rationale: >-
+      `flyway migrate` with nothing to apply exits 0, and `erp bootstrap` keeps what
+      exists. A `runtime-service` smoke test is not run as one, so it is a hook.
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      `compatibility.database_schema_produces` is the migrations image's `tech.morze.erp.schema`
+      label, and `database_schema_min` and `database_schema_max` equal it. The committed
+      manifest says `rollback_safe: false`.
+    paths: [bundle/manifest.yaml]
+    consequence: >-
+      production auto-apply can judge a release, and a release after a schema change
+      cannot be rolled back automatically
+    rationale: >-
+      A `runtime-service` step cannot report a schema. The backend documents no compatibility
+      across versions yet, so a release claims only the schema it produces.
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      `backup.volumes` copies `postgres-data`, `valkey-data` and `rustfs-data` with
+      `consistency: cold` and `edge-data` with `hot`; `retention` keeps 3 releases
+      and 7 backups. Postgres runs the image's small-instance settings (`PG_CONF__shared_buffers:
+      128MB`, `maintenance_work_mem: 64MB`, `min_wal_size: 80MB`, `max_wal_size: 1GB`).
+    paths: [bundle/manifest.yaml, bundle/compose/compose.yaml]
+    consequence: >-
+      Postgres and Valkey are captured in one stop window, so a restore never pairs
+      counters older than the numbers in the database; a copy stays near the data's
+      size
+    rationale: >-
+      Owner's call (2026-10-23): cold volumes now, a `pg_dump` hook later. A bundle
+      with neither a backup hook nor named volumes fails every update. The baked `min_wal_size`
+      of 1 GB made each copy at least a gigabyte against a 20 GiB disk.
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      `scripts/resolve.sh` resolves an image tag to its digest and reads the migrations
+      image's schema label; `scripts/pin.sh` writes the component pins and `database_schema_produces`
+      into `bundle/manifest.yaml`. `components.yaml` names the backend's and frontend's
+      `X.Y.Z`, `rollback_safe` and notes; the migrations follow the backend's version.
+      In release mode `pin.sh` refuses `main` and `sha-*` tags.
+    paths: [scripts/**, /components.yaml]
+    consequence: >-
+      a dev bundle pins whatever `main` is, and a release is made of component releases
+      only; pinning twice changes nothing
+    rationale: >-
+      The migrations image always ships with the backend's commit or version. On `main`,
+      backend and migrations rebuild only when their own paths change, so each is
+      resolved, not derived. The release file sits at the root, where the brief had
+      `components/release.yaml`, so the pinning phase spans one module.
+  - id: D-16
+    grade: ASSUMED
+    text: >-
+      `main.yml` builds with `--version-from-git` (`<next-patch>-dev.<n>.g<sha>`,
+      a prerelease) and publishes `:<version>` then moves `:main`. `release.yml` runs
+      on a tag `vX.Y.Z` on main, refuses one that is not, builds `--version X.Y.Z`,
+      and publishes `:X.Y.Z` then moves `:stable`. `pr.yml` builds `--version 0.0.0-pr.<number>`.
+      Any publish first refuses a version whose tag already exists.
+    paths: [.github/workflows/**]
+    consequence: >-
+      `:main` always increases and only `--mode dev` machines take it; a version never
+      changes content, since ghcr would overwrite a tag and a re-run makes a new signature
+    rationale: >-
+      `--version-from-git` needs a reachable tag (`morzer/internal/release/version.go`),
+      hence the owner's seed `v0.0.0`, and refuses a dirty bundle directory, which
+      a pull request's uncommitted pin makes.
+  - id: D-17
+    grade: ASSUMED
+    text: >-
+      `main.yml` runs on `repository_dispatch` `component-published`, on a push to
+      `bundle/**` or `components.yaml`, by hand, and every six hours, in one concurrency
+      group that never cancels. It re-resolves every component's `main` and never
+      trusts the payload; a changed pin is committed as `⬆️ build(deps): bump <components>
+      to <sha7s>` with `GITHUB_TOKEN` and pushed, rebasing and re-resolving on a lost
+      race.
+    paths: [.github/workflows/**]
+    consequence: >-
+      `git log` shows what changed between two dev bundles, and a lost dispatch is
+      caught within six hours
+    rationale: >-
+      A push with `GITHUB_TOKEN` starts no further run. The commit is the dev bundle's
+      identity, which keeps the version monotonic.
+  - id: D-18
+    grade: ASSUMED
+    text: >-
+      Bundles are signed with minisign: `main` and pull-request-free runs with `MINISIGN_DEV_KEY`,
+      releases with `MINISIGN_RELEASE_KEY`, both repository secrets. A workflow writes
+      the key to a `0600` file under `$RUNNER_TEMP`, signs `bundle/SHA256SUMS`, and
+      verifies with `--signing-key` from the variable `MINISIGN_DEV_PUBKEY` or `MINISIGN_RELEASE_PUBKEY`.
+      `pr.yml` signs with a key it makes in the job.
+    paths: [.github/workflows/**]
+    consequence: >-
+      a machine trusts the keys given at `init` and nothing else; anyone who can push
+      a branch here can read both keys
+    rationale: >-
+      Owner's call (2026-10-23). On the free plan a private repository has no environments
+      or required reviewers, so a release key cannot be gated in CI. morzer refuses
+      cosign.
+  - id: D-19
+    grade: ASSUMED
+    text: >-
+      A bundle is smoke-tested on the runner before it is published, in a job with
+      `packages: read`: a fresh `sudo morzer init` and `apply`, and, when `:main`
+      exists, an `init` from the published `:main` then `morzer update` to the new
+      archive. Each probes the loopback health port. Publishing is a separate job
+      with `packages: write` that needs the smoke job.
+    paths: [.github/workflows/**]
+    consequence: >-
+      a broken `main` never reaches a dev VM, an update path is proven as well as
+      an install, and bundle code that runs as root never shares a job with a token
+      that can write packages
+    rationale: >-
+      Dev VMs run `update`, not `init`. The runner's root Docker logs in to ghcr for
+      the private images.
+  - id: D-20
+    grade: ASSUMED
+    text: >-
+      `retention.yml` keeps the last 5 `*-dev.*` versions and untagged versions for
+      1 day, and never touches `main`, `stable` or an `X.Y.Z`, with `snok/container-retention-policy@v3.0.0`
+      and `GH_PAT`.
+    paths: [.github/workflows/**]
+    consequence: >-
+      the free plan's package storage holds the bundles a dev VM may still roll back
+      to, and every release
+    rationale: The component repositories use the same action.
+  - id: D-21
+    grade: ASSUMED
+    text: >-
+      `renovate.json` bumps the infrastructure images in `bundle/manifest.yaml` through
+      one regex custom manager over `repo:tag@sha256:`, and `components.yaml`'s semver
+      tags through the docker datasource with a `hostRules` token.
+    paths: [/renovate.json]
+    consequence: >-
+      a new infrastructure digest or component release arrives as a pull request;
+      merging one and tagging here is a bundle release
+    rationale: >-
+      Renovate's docker manager does not read `bundle/manifest.yaml`.
+  - id: D-22
+    grade: ASSUMED
+    text: >-
+      The README covers installing on a dev VM following `:main` and a customer VM
+      following `:stable`, updating, rolling back, backing up, and restoring Postgres
+      and Valkey together; setting the operator secrets; the ghcr login for root's
+      Docker; `backup.before_update=false` on the dev VM; and changing the database
+      password with `ALTER ROLE`. It recommends no image prune.
+    paths: [/README.md, /CHANGELOG.md]
+    consequence: >-
+      an operator can run both channels from the README alone, and a manual prune
+      never deletes the previous release's images or the backup helper
+    rationale: >-
+      morzer 0.6.0 removes a pruned release's images and 0.5.0 prunes old pre-update
+      backups, so the brief's weekly prune now only breaks rollback.
+  - id: D-23
+    grade: OPEN
+    text: >-
+      The minimum Docker Engine and Compose that mount a `type: image` volume from
+      a `repo@sha256:` source, recorded in `requirements.tools`.
+    paths: [bundle/manifest.yaml]
+    consequence: >-
+      `preflight` refuses a host that cannot mount the migrations
+    rationale: >-
+      Engine 29.7 with Compose 5.5 is the one combination tested. Engine 28.1 and
+      Compose 2.35 are a guess.
+  - id: D-24
+    grade: ASSUMED
+    text: >-
+      `requirements` declare `architectures: [amd64]`, `memory: 4GiB`, `disk: 20GiB`,
+      and the three port parameters as `{{ .Parameters.x }}`.
+    paths: [bundle/manifest.yaml]
+    consequence: >-
+      an arm64 host is refused before anything is pulled
+    rationale: >-
+      The backend, migrations and frontend images are amd64 only. Memory and disk
+      are a starting guess, to measure on the dev VM.
+  - id: D-25
+    grade: ASSUMED
+    text: >-
+      The parameters are `http_port` (80), `https_port` (443) and `health_port` (8081)
+      for `edge`, `api_workers` (2) for `backend`, and `log_level` (`debug`, `info`,
+      `warning`, `error`; `info`) for `backend` and `worker`.
+    paths: [bundle/manifest.yaml]
+    consequence: >-
+      changing a port re-creates the edge alone, and the health checks follow the
+      health port
+    rationale: Each API worker takes about 300 MB.
