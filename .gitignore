@@ -1,5 +1,5 @@
-.cnab/
-creds.yaml
-porter.yaml
-.env
-.gh-token
+# The bundle's build outputs: `morzer release build --version-from-git` refuses a
+# dirty bundle directory.
+SHA256SUMS*
+*.tar.zst
+images/

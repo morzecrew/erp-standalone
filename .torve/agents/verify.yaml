@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=../schemas/agent.json
+role: verify
+
+equipment:
+- kind: skill
+  source: torve:working-rules
+- kind: skill
+  source: torve:verifier
