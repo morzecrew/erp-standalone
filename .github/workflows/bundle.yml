@@ -166,6 +166,7 @@ jobs:
           VERSION: ${{ steps.build.outputs.version }}
         run: |
           archive="erp-${VERSION}.tar.zst"
+          mkdir -p "${RUNNER_TEMP}/dist"
           out=$(morzer release archive bundle -o "${RUNNER_TEMP}/dist/${archive}" --json)
           digest=$(jq -r '.data.digest' <<<"${out}")
           echo "archive=${archive}" >>"${GITHUB_OUTPUT}"
