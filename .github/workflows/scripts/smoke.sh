@@ -14,6 +14,9 @@
 set -euo pipefail
 
 health_port=8081
+# morzer reads a volume for a backup through this image and never pulls it
+# itself; `morzer doctor` names it under backup.volume-helper. 0.6.0's own.
+volume_helper=busybox@sha256:9db7b59979c38555a39def84a31fb98b5296952f9e3afd4f6f11f05b07adfab0
 
 die() {
 	echo "smoke.sh: $*" >&2
@@ -58,6 +61,7 @@ install_release() {
 
 	# --verbose: morzer prints a one-shot's output, a migration's error, only then.
 	sudo morzer --verbose apply
+	sudo docker pull --quiet "${volume_helper}"
 }
 
 probe() {
