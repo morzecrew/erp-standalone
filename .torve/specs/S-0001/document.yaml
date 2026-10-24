@@ -7,7 +7,7 @@ change:
   type: feat
   scope: bundle
 status: accepted
-implementation: none
+implementation: complete
 depends_on: []
 informed_by: []
 supersedes: []
@@ -103,10 +103,10 @@ sections:
       - Repository secrets `MINISIGN_DEV_KEY` and `MINISIGN_RELEASE_KEY` hold each password-less secret-key file; repository variables `MINISIGN_DEV_PUBKEY` and `MINISIGN_RELEASE_PUBKEY` hold each bare `RW…` public key.
       - Seed tag `v0.0.0` is on main, before the workflows land: `--version-from-git` needs a reachable tag, and a later push of a `v*` tag would start `release.yml`.
       - The `GH_PAT` secret is a classic token with `delete:packages`, which `retention.yml` needs.
+      - Mend's Renovate app covers this repository, with a repository secret `GHCR_READ_TOKEN` in the developer portal: a classic token with `read:packages` only, for `components.yaml`.
 
       To do:
 
-      - Mend's Renovate app covers this repository, with a repository secret `GHCR_READ_TOKEN` in the developer portal: a classic token with `read:packages` only, for `components.yaml`.
       - Later, with the dev VM: a read-only `read:packages` token, `sudo docker login ghcr.io` with it, and `morzer init` as the README says.
 alternatives:
   - option: >-

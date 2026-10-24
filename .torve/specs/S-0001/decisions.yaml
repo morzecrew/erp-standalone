@@ -101,9 +101,8 @@ decisions:
       user (`owner`). Two non-root readers get two declarations, which the operator
       sets from one value: `postgres_password` (owner 65532) and `pgbouncer_password`
       (the pgbouncer image's user), `s3_secret_key` (65532) and `rustfs_secret_key`
-      (10001). Only `bootstrap`
-      gets `admin_password` and `APP__ADMIN_PASSWORD_FILE`. `APP__VERSION` is not
-      set.
+      (10001). Only `bootstrap` gets `admin_password` and `APP__ADMIN_PASSWORD_FILE`.
+      `APP__VERSION` is not set.
     paths: [bundle/secrets.schema.yaml, bundle/compose/compose.yaml]
     consequence: >-
       every service starts without running as root unless its image starts as root,
