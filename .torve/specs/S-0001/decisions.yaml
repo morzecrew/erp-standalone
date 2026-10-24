@@ -76,7 +76,7 @@ decisions:
       the pooler takes them all and opens at most 30. Flyway takes session locks,
       which transaction pooling breaks.
   - id: D-6
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       Valkey is durable: `VALKEY_PERSISTENCE: aof`, `VALKEY_MAXMEMORY_POLICY: noeviction`,
       `deploy.resources.limits.memory: 1g`, and a health check that authenticates
@@ -98,7 +98,10 @@ decisions:
       mounted at `/run/secrets/<name>` from `${ERP_SECRETS_DIR:-/run/erp/secrets}`,
       and reads them through `*_FILE` variables; no service is given a secret as a
       plain variable. A secret read by a non-root service is owned by that service's
-      user (`owner`), and two non-root readers get two declarations (Q-1). Only `bootstrap`
+      user (`owner`). Two non-root readers get two declarations, which the operator
+      sets from one value: `postgres_password` (owner 65532) and `pgbouncer_password`
+      (the pgbouncer image's user), `s3_secret_key` (65532) and `rustfs_secret_key`
+      (10001). Only `bootstrap`
       gets `admin_password` and `APP__ADMIN_PASSWORD_FILE`. `APP__VERSION` is not
       set.
     paths: [bundle/secrets.schema.yaml, bundle/compose/compose.yaml]
@@ -310,7 +313,9 @@ decisions:
     text: >-
       `renovate.json` bumps the infrastructure images in `bundle/manifest.yaml` through
       one regex custom manager over `repo:tag@sha256:`, and `components.yaml`'s semver
-      tags through the docker datasource with a `hostRules` token.
+      tags through the docker datasource. Its one host rule reads the private packages:
+      `matchHost: ghcr.io`, `hostType: docker`, `username: Misery7100` and `password:
+      "{{ secrets.GHCR_READ_TOKEN }}"`, a repository secret in Mend's developer portal.
     paths: [/renovate.json]
     consequence: >-
       a new infrastructure digest or component release arrives as a pull request;
