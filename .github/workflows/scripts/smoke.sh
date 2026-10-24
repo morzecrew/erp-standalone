@@ -6,6 +6,7 @@
 #   smoke.sh update <archive>               `sudo morzer update` to the archive
 #   smoke.sh probe                          the edge's loopback health port
 #   smoke.sh diagnose                       `morzer status` and the Compose logs
+#   smoke.sh free-disk                      room for the release's disk requirement
 #
 # `install` trusts every key it is given and refuses an unsigned release. The
 # operator's secrets get throwaway values, each pair set from one value as the
@@ -68,6 +69,15 @@ probe() {
 	done
 }
 
+# A hosted runner's root has about 14 GiB free, and the release's preflight
+# wants 20 GiB under /var/lib/erp; the preinstalled toolchains hold about 25.
+free_disk() {
+	[ "${RUNNER_ENVIRONMENT:-}" = github-hosted ] \
+		|| die "free-disk deletes the runner's toolchains; GitHub-hosted runners only"
+	sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
+	df -h /
+}
+
 diagnose() {
 	sudo morzer status || true
 	# The manifest's Compose project.
@@ -86,6 +96,7 @@ update)
 	sudo morzer update "$2"
 	;;
 probe) probe ;;
+free-disk) free_disk ;;
 diagnose) diagnose ;;
-*) die "usage: smoke.sh install|update|probe|diagnose" ;;
+*) die "usage: smoke.sh install|update|probe|diagnose|free-disk" ;;
 esac

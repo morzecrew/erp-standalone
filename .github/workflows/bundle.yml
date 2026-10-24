@@ -205,6 +205,9 @@ jobs:
           ref: ${{ inputs.ref }}
           persist-credentials: false
 
+      - name: Free the disk the release requires
+        run: bash .github/workflows/scripts/smoke.sh free-disk
+
       - name: Install tools
         run: bash .github/workflows/scripts/install-tools.sh minisign zstd morzer sops age
 
@@ -276,6 +279,10 @@ jobs:
         with:
           name: bundle
           path: ${{ runner.temp }}/dist
+
+      - name: Free the disk the release requires
+        if: steps.main.outputs.archive != ''
+        run: bash .github/workflows/scripts/smoke.sh free-disk
 
       - name: Install the published main
         if: steps.main.outputs.archive != ''
