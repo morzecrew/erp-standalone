@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-24T15:59:14Z'
+    title: The Renovate secret is set
+    md: >-
+      The owner set `GHCR_READ_TOKEN` in Mend's developer portal on 2026-10-24, so the
+      owner's setup list moves it from to do to done. No decision row changes.
