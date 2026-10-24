@@ -23,6 +23,17 @@ random() {
 	openssl rand -hex 24
 }
 
+# shortcut: morzer 0.6.0's `secret set` stores the value, then renders every
+# secret to restart the services that read it, and exits 6 while another
+# required secret is unset. Before the first `apply` that is every set but the
+# last; `apply` renders them all and refuses a missing one. Drop this when
+# `secret set` skips the restart on an installation never applied.
+set_secret() {
+	local status=0
+	sudo morzer secret set "$1" || status=$?
+	[ "${status}" -eq 0 ] || [ "${status}" -eq 6 ] || exit "${status}"
+}
+
 install_release() {
 	local archive=$1 key
 	shift
@@ -38,11 +49,11 @@ install_release() {
 	local database storage
 	database=$(random)
 	storage=$(random)
-	printf %s "${database}" | sudo morzer secret set postgres_password
-	printf %s "${database}" | sudo morzer secret set pgbouncer_password
-	printf %s "${storage}" | sudo morzer secret set s3_secret_key
-	printf %s "${storage}" | sudo morzer secret set rustfs_secret_key
-	random | sudo morzer secret set admin_password
+	printf %s "${database}" | set_secret postgres_password
+	printf %s "${database}" | set_secret pgbouncer_password
+	printf %s "${storage}" | set_secret s3_secret_key
+	printf %s "${storage}" | set_secret rustfs_secret_key
+	random | set_secret admin_password
 
 	sudo morzer apply
 }

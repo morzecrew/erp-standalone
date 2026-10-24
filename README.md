@@ -211,6 +211,11 @@ printf '%s' "$S3_SECRET" | sudo morzer secret set rustfs_secret_key
 sudo morzer secret set admin_password
 ```
 
+On a fresh install, morzer 0.6.0 prints `required secret "…" is not set` for
+every `secret set` but the last. The value is stored: morzer then renders every
+secret to restart the services that read this one, and refuses while another
+is still unset. `apply` renders them all and names any that is missing.
+
 If a pair drifts apart the backend does not start, and the failure is loud
 rather than a stale login: the two files are read by two processes that must
 agree with the one password Postgres holds.
