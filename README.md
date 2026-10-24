@@ -254,12 +254,16 @@ manifest declares, takes a pre-update backup (unless `backup.before_update`
 is off), stages the release and converges to it: pull, migrate (flyway, then
 bootstrap), start, then the smoke test.
 
-**A failed update recovers by itself when the schema did not move.** The
+**An update that fails after its migrations, on a schema that did not move,
+recovers by itself** — a health check or the smoke test that fails, say. The
 manager returns to the release that was running and exits 11; nothing is asked
-of you, and the unattended timer does the same. An update that moved the schema
-cannot return that way — the previous release reads only the schema it
-produces — so it stops for a person and exits 12. Repair the cause, clear the
-flag and converge again, or restore the pre-update backup the manager names:
+of you, and the unattended timer does the same. That needs `rollback_safe:
+true`, which every dev build declares and a release declares when
+`components.yaml` says so of both components. A failure in the migrations
+themselves (flyway, bootstrap, the schema report), or one after the schema
+moved, cannot return that way, so it stops for a person and exits 12. Repair
+the cause, clear the flag and converge again, or restore the pre-update backup
+the manager names:
 
 ```console
 sudo morzer doctor                        # what the failed operation left
@@ -282,9 +286,10 @@ can be reversed, whether the current database schema is compatible with the
 previous release, and whether a restore is required. When the answers do not
 permit a safe return it refuses, naming the backup to restore from instead.
 
-Every release of this bundle declares `rollback_safe: true`, so **between two
-releases that share a schema `morzer rollback` returns to the previous
-release.** Across a schema change it is a restore, not a rollback: a release
+Every dev build of this bundle declares `rollback_safe: true`, and a release
+declares what `components.yaml` says of both components. Where it is true,
+**between two releases that share a schema `morzer rollback` returns to the
+previous release.** Across a schema change it is a restore, not a rollback: a release
 reads only the schema it produces, so the manager refuses and names the
 pre-update backup. `--force` authorises a destructive action; it does not
 override a refusal.

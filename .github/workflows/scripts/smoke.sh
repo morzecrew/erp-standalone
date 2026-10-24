@@ -17,7 +17,8 @@
 # `backup-restore` writes the marker `before` into Postgres and Valkey, backs
 # up, writes `after`, restores, and fails unless both read `before` again.
 # `rollback` passes when the rollback succeeds, or when morzer refuses it
-# (exit 9) and the two archives produce different database schemas.
+# (exit 9) and either the new archive declares `rollback_safe: false` or the
+# two archives produce different database schemas.
 # The markers are fixed words; no secret is ever read out here.
 set -euo pipefail
 
@@ -135,13 +136,15 @@ backup_restore() {
 	check_marker before
 }
 
-# The `database_schema_produces` an archive's manifest declares.
-schema_produces() {
+# A field an archive's manifest declares, by its key: `rollback_safe`,
+# `database_schema_produces`.
+manifest_field() {
 	local manifest
 	manifest=$(tar -I zstd -tf "$1" | grep -E '(^|/)manifest\.yaml$' | awk '{ print length, $0 }' \
 		| sort -n | sed -n '1s/^[0-9]* //p')
 	[ -n "${manifest}" ] || die "$1 holds no manifest.yaml"
-	tar -I zstd -xOf "$1" "${manifest}" | sed -n 's/^[[:space:]]*database_schema_produces:[[:space:]]*\([0-9]*\).*/\1/p' | sed -n 1p
+	tar -I zstd -xOf "$1" "${manifest}" \
+		| sed -n "s/^[[:space:]]*$2:[[:space:]]*\([^[:space:]#]*\).*/\1/p" | sed -n 1p
 }
 
 rollback() {
@@ -149,8 +152,14 @@ rollback() {
 	sudo morzer --verbose rollback || status=$?
 	[ "${status}" -ne 0 ] || { echo "smoke.sh: rolled back"; return; }
 	[ "${status}" -eq 9 ] || die "morzer rollback exited ${status}"
-	from=$(schema_produces "${new}")
-	to=$(schema_produces "${published}")
+	# A release takes rollback_safe from components.yaml, and false refuses
+	# any rollback from it, on one schema or not.
+	if [ "$(manifest_field "${new}" rollback_safe)" = false ]; then
+		echo "smoke.sh: rollback refused, as the new release declares rollback_safe: false"
+		return
+	fi
+	from=$(manifest_field "${new}" database_schema_produces)
+	to=$(manifest_field "${published}" database_schema_produces)
 	[ -n "${from}" ] && [ -n "${to}" ] || die "an archive declares no database_schema_produces"
 	[ "${from}" != "${to}" ] \
 		|| die "morzer rollback refused (exit 9) between two releases on schema ${from}"

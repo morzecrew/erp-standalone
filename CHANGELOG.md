@@ -45,13 +45,15 @@ head of `main`; the first tagged release seals this section under its version.
 ### Changed
 
 - Between two releases on one schema, `morzer rollback` returns to the previous
-  release: the bundle declares `rollback_safe: true`, where the update's
-  compatibility check and the unattended gate can now judge against the
-  database's schema instead of warning that it is unknown.
-- A failed update recovers by itself. When the schema did not move the manager
-  returns to the release that was running and exits 11, with nothing asked of
-  the operator. An update that moves the schema still stops for a person
-  (exit 12), and the way back is restoring the pre-update backup.
+  release: dev builds declare `rollback_safe: true` (a release declares what
+  `components.yaml` says), and migrate now reports the database's schema, so
+  `rollback`, the update's compatibility check and the unattended gate judge
+  against it instead of warning that it is unknown.
+- An update that fails after its migrations, on a schema that did not move,
+  recovers by itself: the manager returns to the release that was running and
+  exits 11, with nothing asked of the operator. A failure in the migrations, or
+  after the schema moved, still stops for a person (exit 12), and the way back
+  is restoring the pre-update backup.
 - The dev channel's version names the last commit that changed `bundle/`, so
   `:main` moves only when `bundle/` changes. A merge that ships nothing new no
   longer publishes a new `*-dev.*` version.

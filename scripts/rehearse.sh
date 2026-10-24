@@ -45,7 +45,7 @@ Options:
 The workstation needs:
   docker            to run the container
   oras              logged in to ghcr.io; it pulls the bundle and its images
-  yq                to read each manifest's images
+  yq                mikefarah's yq v4, to read each manifest's images
 
 REHEARSE_PUBKEY must hold the minisign public key that signed the --from
 bundle: the repository's MINISIGN_DEV_PUBKEY for :main, its
@@ -83,6 +83,7 @@ done
 for tool in docker oras yq git tar; do
 	command -v "${tool}" >/dev/null || die "${tool} is not on PATH; see --help"
 done
+yq --version 2>/dev/null | grep -q mikefarah || die "yq on PATH is not mikefarah's yq v4; see --help"
 from_pubkey=${REHEARSE_PUBKEY:-}
 [ -n "${from_pubkey}" ] || die "set REHEARSE_PUBKEY to the public key that signed ${from}; see --help"
 
@@ -195,12 +196,11 @@ load_image() {
 	elif [[ ${first} != *.* && ${first} != *:* && ${first} != localhost ]]; then
 		ref=docker.io/${ref}
 	fi
-	if [[ ${ref##*/} == *:* ]]; then
-		image=${ref}
-		ref=${ref%:*}
-	else
-		image=${ref}@${digest}
-	fi
+	[[ ${ref##*/} != *:* ]] || ref=${ref%:*}
+	# By digest, never by tag: the published bundle and the working tree can
+	# pin two digests under one tag, and a second load under the tag would
+	# leave the first unnamed and its pin unresolvable.
+	image=${ref}@${digest}
 	# Docker Hub's registry answers at registry-1.docker.io, not docker.io.
 	source=${ref/#docker.io\//registry-1.docker.io/}@${digest}
 
