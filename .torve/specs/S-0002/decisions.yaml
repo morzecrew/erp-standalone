@@ -1,0 +1,192 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `scripts/version.sh` prints the dev version of the bundle at HEAD. It takes
+      the last commit that changed `bundle/` (`git log -1 --format=%H -- bundle`)
+      and describes it with `git describe --tags --long`, as `vX.Y.Z-N-g<sha>`. From
+      that it prints `X.Y.(Z+1)-dev.N.g<sha>`, for every N including 0, with the sha
+      as git abbreviates it. It refuses, exiting non-zero with the reason on stderr,
+      in four cases: no commit changed `bundle/`; no tag is reachable from that commit;
+      the nearest tag is not `X.Y.Z` or `vX.Y.Z`; or `git status --porcelain --untracked-files=all
+      -- bundle` reports anything. `VERSION_ROOT` names the repository (default: the
+      one the script is in), as `PIN_ROOT` does for `pin.sh`.
+    paths: [scripts/version.sh, tests/version/**]
+    consequence: >-
+      Two commits with one `bundle/` name one version, and a commit outside `bundle/`
+      names the version already built; the dev channel never names a bare `X.Y.Z`,
+      so it cannot take a version `release.yml` will publish
+    rationale: >-
+      morzer's own scheme (`internal/release/version.go`) describes HEAD, and a dirty
+      tree there is refused for the same reason: the version must describe the bytes
+      packed. On a tag it prints the tag verbatim, which on the dev channel would
+      publish `X.Y.Z` with `main` components before `release.yml` could.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `bundle.yml`'s build step stamps `--version "$(scripts/version.sh)"` when its
+      `version` input is empty, in place of `--version-from-git`. `main.yml` keeps
+      `on-existing: skip`, and keeps building HEAD with HEAD's workflow scripts.
+    paths: [.github/workflows/bundle.yml]
+    consequence: >-
+      A scheduled or dispatched `main.yml` run after a commit outside `bundle/` finds
+      its version published and publishes nothing; a pin commit publishes a new version
+    rationale: >-
+      S-0001's goal was that a run with nothing new publishes nothing, and S-0001/D-16's
+      `--version-from-git` counts every commit. Building an older checkout instead
+      would run that commit's `smoke.sh`, so a script fix would never reach it.
+    cites: [S-0001/D-16]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `operations.migrate` gains a third step after `flyway` and `bootstrap`: `{kind:
+      hook, command: [hooks/schema-version], timeout: 1m}`. `bundle/hooks/schema-version`
+      is an executable POSIX `sh` script. It finds the running Postgres container
+      by the labels `com.docker.compose.project=erp` and `com.docker.compose.service=postgres`,
+      and runs `psql -U postgres -d erp -tAc` on `select max(version::int) from flyway_schema_history
+      where success and version is not null` with `docker exec`. It writes `{"schema_version":
+      N, "message": "database schema N"}` to `ERP_RESULT_FD`, as `hooks/smoke-test`
+      writes its result, and exits 1 with a message when no container answers or the
+      answer is not a number. With `ERP_DRY_RUN=1` it reports `skipped` and reads
+      nothing.
+    paths: [bundle/hooks/schema-version, bundle/manifest.yaml]
+    consequence: >-
+      morzer records each release's `schema_at_install`, so `rollback`, `update`'s
+      compatibility check and the unattended gate judge against the database instead
+      of warning that the schema is unknown
+    rationale: >-
+      A `runtime-service` step cannot report `schema_version` (morzer's `hooks.md`),
+      and morzer keeps the last schema a migrate step reports (`internal/lifecycle/ops/apply.go`).
+      The migrations image's `tech.morze.erp.schema` label is the highest versioned
+      migration (erp-backend's `build-and-push.yml`), which is what the query reads.
+      Rehearsed on 2026-10-24: `schema_at_install: 32`.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The committed manifest declares `compatibility.rollback_safe: true`. `scripts/pin.sh
+      --release` writes `rollback_safe` as `components.yaml`'s `backend.rollback_safe`
+      and `frontend.rollback_safe` together, true only when both are, and refuses
+      a value that is not `true` or `false`. Plain `pin.sh` leaves it as committed.
+    paths: [bundle/manifest.yaml, bundle/RELEASE.md, scripts/pin.sh, tests/pin/**]
+    consequence: >-
+      Between two releases on one schema, morzer rolls back, and returns from a failed
+      update by itself (exit 11). Across a schema change, because `database_schema_min`
+      = `max` = `produces`, it refuses a rollback, naming the pre-update backup, and
+      a failed update stops at exit 12 for a restore
+    rationale: >-
+      `AssessRollback` (`internal/domain/version.go`) refuses when `rollback_safe`
+      is false, and separately when the recorded schema is past the previous release's
+      `database_schema_max`. With D-3 the second check works, so the first only has
+      to say what the schema cannot. Rehearsed on 2026-10-24: a failing smoke test
+      returned to the previous release, and `rollback` succeeded. Supersedes S-0001/D-13's
+      `rollback_safe: false`.
+    cites: [S-0001/D-13, S-0001/D-15]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      `.github/workflows/scripts/smoke.sh` gains two steps. `backup-restore` writes
+      the marker `before` into a table `smoke_marker` in the `erp` database and into
+      the Valkey key `smoke:marker`. It takes `morzer backup --reason smoke` and writes
+      `after` into both. Then it runs `morzer restore --backup <that id> --force --confirm
+      <installation id>`, with the id read from `morzer status --json`, and fails
+      unless both markers read `before`. `rollback <published archive> <new archive>`
+      runs `morzer rollback`. It passes when the rollback succeeds, and when it exits
+      9 while the two archives' `manifest.yaml` declare different `database_schema_produces`;
+      it fails otherwise. Both reach Postgres and Valkey with `docker exec`, finding
+      each container by its Compose labels. `smoke-install` runs `backup-restore`
+      then `probe` after its probe, and `smoke-update` runs `rollback` then `probe`
+      after the update's probe. `install` pulls morzer's volume helper only when the
+      daemon lacks it.
+    paths: [.github/workflows/scripts/smoke.sh, .github/workflows/bundle.yml]
+    consequence: >-
+      Every bundle CI builds has restored its own backup and rolled back to the published
+      one, or been refused for the right reason, before it can be published
+    rationale: >-
+      The rehearsal proved these by hand. Only CI repeats them for every bundle, on
+      the runner as root, as S-0001/D-19's smoke tests do.
+    cites: [S-0001/D-19]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `bundle.yml`'s `smoke-update` installs the published bundle of the channel its
+      caller publishes to, and then updates to the new one: `:stable` when `inputs.channel`
+      is `stable`, trusting `vars.MINISIGN_RELEASE_PUBKEY`; otherwise `:main`, trusting
+      `vars.MINISIGN_DEV_PUBKEY`. The new bundle's key is trusted beside it. When
+      that tag does not exist, it says so in a notice and proves only the fresh install.
+    paths: [.github/workflows/bundle.yml]
+    consequence: >-
+      `release.yml` proves the path a customer takes, from the last release to this
+      one; `main.yml` and `pr.yml` keep proving the dev VM's
+    rationale: >-
+      S-0001/D-19 installed `:main` everywhere, so a release was tested over a dev
+      build that no customer runs.
+    cites: [S-0001/D-19]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      `scripts/rehearse.sh [--from <oci ref>] [--keep]` rehearses on a workstation
+      what `smoke-install` and `smoke-update` prove on the runner. It starts a privileged
+      `docker:29.7.2-dind` container with a Docker volume for its `/var/lib/docker`,
+      named `erp-rehearsal`. It installs into the container the tools `.github/workflows/scripts/install-tools.sh`
+      pins and verifies (`morzer`, `sops`, `age`), and `bash`, `curl`, `jq`, `openssl`,
+      `sudo`, `zstd` and `minisign` from Alpine. It builds the working tree's `bundle/`
+      inside the container as `0.0.0-rehearsal.<unix time>` and signs it with a key
+      made there. It fetches the `--from` bundle (default `ghcr.io/morzecrew/erp-standalone:main`)
+      with `oras pull` on the workstation. Each image either manifest pins, and morzer's
+      volume helper, is copied with `oras copy --to-oci-layout` on the workstation
+      and given its name in the layout's `io.containerd.image.name` annotation. It
+      is then loaded into the container with `docker load`. In the container it runs
+      `smoke.sh install`, `probe`, `backup-restore`, `update`, `probe`, `rollback`
+      and `probe`, and `diagnose` on a failure. Unless `--keep`, it removes the container
+      and its volume. `--help` prints the usage and what the workstation needs: `docker`,
+      `oras` logged in to ghcr, and `yq`.
+    paths: [scripts/rehearse.sh]
+    consequence: >-
+      An operator tries a bundle's install, backup, restore, update and rollback before
+      opening a pull request, and no credential enters the container
+    rationale: >-
+      Rehearsed by hand on 2026-10-24. A `docker save` from a daemon with the classic
+      image store drops the registry digest the manifest pins (morzer's `ingest.go`
+      measured it). A containerd store loads an OCI layout under the annotated name
+      and answers the digest reference, so no login is needed inside.
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      The README says these things. The update timer is `erp-update.timer`, which
+      setting a channel installs; it ticks daily at 03:30 unless `update.schedule`
+      says otherwise, and the dev VM sets `update.schedule='*:0/15'`. `morzer status`
+      prints the installation id. `morzer rollback` works between releases on one
+      schema, and across a schema change it is a restore. A failed update returns
+      to the previous release by itself when the schema did not move, and otherwise
+      stops for a person: `morzer status --clear-intervention=` and then `apply`,
+      or a restore. After a reboot, `erp.service` runs `apply --startup`, which renders
+      the secrets again. `scripts/rehearse.sh` rehearses a bundle on a workstation.
+    paths: [/README.md, /CHANGELOG.md]
+    consequence: >-
+      An operator following the README sets the dev VM's schedule, finds the installation
+      id, and knows which failures recover by themselves
+    rationale: >-
+      The defaults are morzer 0.6.0's (`DefaultUpdateSchedule = "*-*-* 03:30:00"`
+      in `internal/adapters/supervisor/systemd/systemd.go`); the rest was rehearsed
+      on 2026-10-24.
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      `pgbouncer` sets `PGBOUNCER_CONF__server_login_retry: 1`, `PGBOUNCER_CONF__dns_max_ttl:
+      1` and `PGBOUNCER_CONF__dns_nxdomain_ttl: 1`, each with a comment saying why.
+    paths: [bundle/compose/compose.yaml]
+    consequence: >-
+      After a cold backup stops and restarts Postgres, PgBouncer serves clients again
+      within about two seconds of Postgres being ready, instead of refusing them with
+      a cached error
+    rationale: >-
+      A cold backup stops Postgres and leaves PgBouncer running. While Postgres is
+      stopped its name does not resolve, and PgBouncer caches that failure for `dns_nxdomain_ttl`,
+      then the failed login for `server_login_retry`, 15 s each by default. Clients
+      get the cached error until both pass, even after Postgres is back, possibly
+      at a new address. On pull request #8 the pre-update backup ran into it: `bootstrap`
+      failed with "server login has been failing, cached error" and the update stopped
+      at exit 12. Rehearsed on 2026-10-24: clients were refused for about 27 s after
+      Postgres was ready, and for about 2 s with these settings. The platform pgbouncer
+      image allows all three keys.
