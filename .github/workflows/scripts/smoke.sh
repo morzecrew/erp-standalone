@@ -56,7 +56,8 @@ install_release() {
 	printf %s "${storage}" | set_secret rustfs_secret_key
 	random | set_secret admin_password
 
-	sudo morzer apply
+	# --verbose: morzer prints a one-shot's output, a migration's error, only then.
+	sudo morzer --verbose apply
 }
 
 probe() {
@@ -93,7 +94,7 @@ install)
 	;;
 update)
 	[ $# -eq 2 ] || die "usage: smoke.sh update <archive>"
-	sudo morzer update "$2"
+	sudo morzer --verbose update "$2"
 	;;
 probe) probe ;;
 free-disk) free_disk ;;
