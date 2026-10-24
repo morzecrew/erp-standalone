@@ -1,0 +1,110 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The dev version, from the last bundle commit
+    intent: >-
+      Write `scripts/version.sh` to D-1, in the style of `scripts/pin.sh`: `set -euo
+      pipefail`, a `die` that prefixes `version.sh:`, and the root from `VERSION_ROOT`
+      or the repository the script is in. Print only the version on stdout. Write
+      `tests/version/run.sh`, which builds throwaway repositories under `mktemp -d`
+      (with `git -c user.name=t -c user.email=t@t`, so no global identity is needed)
+      and checks the version or the refusal in each case D-1 names: a commit inside
+      `bundle/` after `v0.0.0`, a later commit outside it (same version), a tag on
+      the bundle commit (`0.0.1-dev.0.g<sha>`), a prerelease nearest tag, an untracked
+      file under `bundle/`, a modified tracked file under `bundle/`, no tag, and no
+      `bundle/` commit. Settles D-1.
+    scope: [scripts/version.sh, tests/version/**]
+    acceptance:
+      - bash tests/version/run.sh
+      - >-
+        shellcheck -S warning scripts/version.sh tests/version/run.sh
+    character: routine
+  - phase: 2
+    title: >-
+      The schema hook, and rollback declared safe within a schema
+    intent: >-
+      Write `bundle/hooks/schema-version` (executable) to D-3, beside `hooks/smoke-test`
+      and in its style, and add the third `operations.migrate` step to `bundle/manifest.yaml`
+      with a comment saying why it exists. Set `compatibility.rollback_safe: true`
+      and rewrite the comment above `compatibility` to D-4. Change `scripts/pin.sh`
+      so `--release` writes `rollback_safe` as D-4 says, and extend `tests/pin/run.sh`
+      and its fixtures: both true gives true, either false gives false, a non-boolean
+      is refused, and plain pinning leaves the committed value. Rewrite `bundle/RELEASE.md`'s
+      "Rolling back" section: a rollback works between releases on one schema, and
+      a schema change needs a restore. Settles D-3 and D-4.
+    scope: [bundle/**, scripts/pin.sh, tests/pin/**]
+    acceptance:
+      - test -x bundle/hooks/schema-version
+      - >-
+        yq -e '.operations.migrate[2].kind == "hook" and .operations.migrate[2].command[0]
+        == "hooks/schema-version" and .compatibility.rollback_safe == true' bundle/manifest.yaml
+      - bash .torve/gates/bundle-verify.sh
+      - bash .torve/gates/compose-config.sh
+      - bash tests/pin/run.sh
+      - >-
+        shellcheck -S warning bundle/hooks/schema-version scripts/pin.sh tests/pin/run.sh
+    character: routine
+  - phase: 3
+    title: >-
+      The workflows build the dev version and prove the operations
+    intent: >-
+      Change `.github/workflows/bundle.yml` to D-2 and D-6, and add `smoke.sh`'s `backup-restore`
+      and `rollback` steps to D-5, with their usage lines in the script's header.
+      Wire both into `smoke-install` and `smoke-update` as D-5 says. Pass `smoke-update`'s
+      published archive and the new one to `rollback`. Keep every existing rule: least
+      `permissions` per job, actions pinned by commit, keys never echoed, `diagnose`
+      on failure. No token or secret value may reach `smoke.sh`'s output: the markers
+      are fixed words, never a secret. Settles D-2, D-5 and D-6.
+    scope: [.github/workflows/**]
+    acceptance:
+      - actionlint
+      - zizmor --offline .github/workflows
+      - >-
+        shellcheck -S warning .github/workflows/scripts/smoke.sh
+      - >-
+        bash .github/workflows/scripts/smoke.sh 2>&1 | grep -q backup-restore
+    depends_on:
+      - 1
+      - 2
+    tier_variant: strong
+    character: structural
+  - phase: 4
+    title: Rehearsing a bundle on a workstation
+    intent: >-
+      Write `scripts/rehearse.sh` to D-7. Reuse `.github/workflows/scripts/install-tools.sh`
+      for morzer, sops and age inside the container, and `smoke.sh` for every step.
+      Copy both into the container rather than mounting the checkout. Name the container
+      and its volume so a second run refuses while the first is up, and remove both
+      on exit unless `--keep`. The script never reads or prints a credential. `oras`
+      uses the workstation's existing login. Settles D-7.
+    scope: [scripts/rehearse.sh]
+    acceptance:
+      - shellcheck -S warning scripts/rehearse.sh
+      - >-
+        bash scripts/rehearse.sh --help | grep -q -- '--from'
+    depends_on:
+      - 3
+    tier_variant: strong
+    character: structural
+  - phase: 5
+    title: The README and the changelog
+    intent: >-
+      Correct and extend `README.md` to D-8, replacing what it says today rather than
+      adding beside it: the dev VM's install steps set `update.schedule='*:0/15'`.
+      Rollback, failed-update recovery and the reboot path follow what D-3, D-4 and
+      D-5 made true. A short "Rehearsing a bundle" section covers `scripts/rehearse.sh`.
+      Add an `Unreleased` entry to `CHANGELOG.md` for the operator-visible changes:
+      rollback within a schema, a failed update returning by itself, and the dev version
+      that no longer moves without a bundle change. Settles D-8.
+    scope: [/README.md, /CHANGELOG.md]
+    acceptance:
+      - grep -q 'erp-update.timer' README.md
+      - '! grep -q ''morzer-update.timer'' README.md'
+      - grep -qF "update.schedule='*:0/15'" README.md
+      - grep -q 'scripts/rehearse.sh' README.md
+      - grep -q '## \[Unreleased\]' CHANGELOG.md
+    depends_on:
+      - 2
+      - 3
+      - 4
+    character: routine

@@ -1,0 +1,140 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0002
+title: >-
+  A dev version per bundle change, and the operations rehearsed
+kind: design
+change:
+  type: fix
+  scope: bundle
+status: draft
+implementation: none
+depends_on: [S-0001]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  The dev channel names a version after the last commit that changed `bundle/`, migrate reports the database's schema so morzer can roll back by itself, and CI and a workstation rehearsal prove every operation on every bundle.
+
+  A run with nothing new then publishes nothing. A failed dev update returns to the previous release when the schema did not move, and install, backup, restore, update and rollback are each proven before a bundle is published.
+
+  Five phases: the version script, then the bundle's schema hook and rollback declaration, then the workflows, then the workstation rehearsal, then the README and changelog.
+motivation: |-
+  S-0001 shipped a bundle that installs and updates. On 2026-10-24 every other operation was rehearsed on a local machine, and the rehearsal found what CI never ran. Three findings make the dev VM worse than it needs to be, and one breaks an acceptance criterion S-0001 wrote.
+
+  - **A run with nothing new publishes again.** `--version-from-git` describes HEAD. So a scheduled `main.yml` run after a commit outside `bundle/` (a document, a workflow fix) builds a version not yet published, with the same bytes as the last one, and publishes it.
+  - **morzer never learns the schema.** A `runtime-service` migration cannot report `schema_version` (morzer's `hooks.md`), so every release is recorded with schema 0. `morzer rollback` and `update` then print "database schema version is unknown" and skip the schema check.
+  - **Every failed update needs a person.** The manifest says `rollback_safe: false`. So an update that fails after migrate (at its smoke test, say) stops at exit 12 and flags the installation for manual intervention, even when the schema did not move. A flagged installation's update timer does nothing, so one bad `:main` stops the dev VM following the channel until someone clears it.
+  - **The README is wrong in three places.** The update timer is `erp-update.timer`, not `morzer-update.timer`, and it ticks daily at 03:30, not hourly. And `morzer ls` does not print the installation id that `restore --confirm` needs; `morzer status` does.
+current_state: |-
+  - **Rehearsed on 2026-10-24** in a privileged `docker:29.7.2-dind` container standing in for a VM, with morzer 0.6.0 and the published `:main` (`0.0.1-dev.3.g4c862de`). The images were copied in as OCI layouts with the workstation's registry credentials. They were loaded into the container's containerd store, where a digest reference resolves without a login.
+  - **What works:**
+    - `init` and `apply` (29 s), and a second `apply` that recreates nothing.
+    - Admin sign-in through the edge.
+    - `backup` (277 MiB) and `backup verify`.
+    - `update` to a locally signed bundle.
+    - `restore`, with Postgres and Valkey both back to the backup.
+    - `secret rotate valkey_password`.
+    - A reboot: `/run` is wiped, and `apply --startup` re-renders the secrets and brings every service back.
+    - An unattended tick that installs from a channel on a loopback registry.
+  - **What does not:**
+    - `rollback` is refused ("the installed release declares its migrations irreversible"), with the schema unknown.
+    - An update whose smoke test fails ends at exit 12 with MANUAL INTERVENTION REQUIRED. `morzer status --clear-intervention=` then `apply` brings the previous release back.
+  - **A prototype fixed both.** It added a third migrate step: a hook that reads `max(version)` from `flyway_schema_history` and reports it. morzer then recorded `schema_at_install: 32`. With `rollback_safe: true`, the same failing update returned to the previous release by itself (exit 11, "earlier changes were rolled back"), and `rollback` succeeded.
+  - **The worker ignored SIGTERM.** erp-backend's `bg` runs as PID 1 and waited on an event with no handler. So `restore` spent 2 minutes stopping it, and each rotation 10 s. erp-backend #139 fixes it, and the bundle picks it up through the next pin.
+  - `scripts/pin.sh --release` requires `rollback_safe` in `components.yaml` and never writes it.
+  - `release.yml`'s update smoke test installs the published `:main` and updates to the release. A customer takes a different path: from `:stable`.
+goals: |-
+  - A `main.yml` run after a commit that leaves `bundle/` alone publishes nothing. A run after a pin commit publishes a new version.
+  - morzer records the schema each release migrated the database to.
+  - A dev update that fails with the schema unchanged returns to the previous release by itself. `morzer rollback` works between two releases on one schema.
+  - CI proves that every bundle it builds can install, back up and restore, update from the published channel, and roll back or refuse to.
+  - An operator can rehearse the same steps on a workstation, with nothing in the rehearsal holding a credential.
+non_goals: |-
+  - Changes to morzer. Two asks go to morzer as requests, not phases: record `database_schema_produces` when a migration reports nothing, and skip the service restart in `secret set` before the first `apply`.
+  - Reversible migrations. A rollback across a schema change stays a restore.
+  - The dev VM itself, as in S-0001.
+design:
+  - key: the-dev-version
+    md: |-
+      `scripts/version.sh` prints the version a dev bundle is built as. It applies morzer's `--version-from-git` scheme, `<next-patch>-dev.<distance>.g<sha>`, to the last commit that changed `bundle/` rather than to HEAD. The bytes of a bundle are the bytes of `bundle/`, so two commits with one `bundle/` name one version, and `bundle.yml`'s existing check skips a version already published. A pin commit changes `bundle/manifest.yaml` and names a new one.
+
+      The dev channel never publishes a bare `X.Y.Z`. A release tag on that commit gives `X.Y.(Z+1)-dev.0.g<sha>`, so only `release.yml` ever publishes a release's version (D-1, D-2).
+  - key: the-schema-and-rollback
+    md: |-
+      Migrate gains a third step: a hook that reads the highest successful versioned migration from `flyway_schema_history` and reports it as `schema_version`. The migrations image's `tech.morze.erp.schema` label counts the same thing, so after a successful migrate the reported schema equals the manifest's `database_schema_produces` (D-3).
+
+      With the schema known, `rollback_safe` can tell the truth. Every release declares `database_schema_min` = `max` = `produces`. So morzer's own check refuses a rollback across any schema change, and refuses a failed update's return across one too. `rollback_safe` is left to say only whether anything besides the schema makes going back unsafe, and for a dev build nothing does. The committed manifest says `true`; a release says what `components.yaml` says of both components (D-4).
+  - key: proving-the-operations
+    md: |-
+      `smoke.sh` gains two steps:
+
+      - `backup-restore` writes a marker into Postgres and Valkey, backs up, and changes both markers. Then it restores and checks that both markers came back.
+      - `rollback` returns from the new bundle to the published one. When their schemas differ, it checks that morzer refuses instead.
+
+      `smoke-install` runs `backup-restore` after its probe, and `smoke-update` runs `rollback` after the update's probe (D-5).
+
+      The update smoke test starts from the channel the caller publishes to: `:stable` with the release key for `release.yml`, and `:main` with the dev key otherwise (D-6).
+
+      `scripts/rehearse.sh` runs the same `smoke.sh` steps on a workstation, inside a privileged Docker-in-Docker container. The images go in as OCI layouts fetched with the workstation's own registry login, so the container never holds a credential (D-7).
+tests: |-
+  - Phase 1: `tests/version/run.sh` builds throwaway repositories and checks the version in six cases: a commit inside `bundle/`, a commit outside it, a tag on the bundle commit, a prerelease tag, a dirty `bundle/`, and no tag at all.
+  - Phase 2: `tests/pin/run.sh` checks that `--release` writes `rollback_safe` as both components' conjunction, and that plain pinning leaves it alone. The schema hook needs a real database, which only CI's smoke test and the workstation rehearsal have.
+  - Phase 3: `actionlint`, `zizmor` and `shellcheck`. Then the pull request's own `pr.yml` run is the proof: `smoke-install` runs `backup-restore`, and `smoke-update` runs `rollback` against the published `:main`.
+  - Phase 4: `shellcheck` and `scripts/rehearse.sh --help`. The owner's workstation run is the proof.
+docs: >-
+  The README gains rollback and failed-update recovery as they now behave, the dev
+  VM's update schedule, the right timer name and installation id, and the workstation
+  rehearsal. `bundle/RELEASE.md` says when a rollback is a rollback and when it is
+  a restore.
+out_of_scope: ''
+risks: |-
+  - **`rollback_safe: true` on dev builds trusts that the schema number moves with every change.** A backend that writes data its predecessor cannot read, without a migration, would be rolled back over it. On the dev VM that is a sandbox's risk; a release declares what `components.yaml` says.
+  - **The schema hook reaches Postgres through Docker on the host.** It finds the container by Compose's project and service labels. A renamed project (`runtimes.compose.options.project`) breaks it, loudly, at migrate.
+  - **The CI smoke tests get longer.** A backup and restore adds about a minute to `smoke-install`, or about three until erp-backend #139 is pinned. A rollback adds about 20 s to `smoke-update`.
+  - **The rehearsal container is privileged.** It runs its own Docker daemon, and it is for a workstation, never CI.
+sections:
+  - key: set-up-by-the-owner
+    md: >-
+      Nothing new. erp-backend #139 (the worker's SIGTERM) merges independently of
+      this document.
+alternatives:
+  - option: >-
+      Build from a checkout of the last bundle commit with `--version-from-git`
+    rejected_because: >-
+      The workflows' own scripts would then come from that commit, so a fix to `smoke.sh`
+      would never reach a bundle whose version had not published yet.
+  - option: >-
+      Skip publishing when the archive's content digest matches `:main`'s
+    rejected_because: >-
+      The version is stamped into the manifest, so two builds of one `bundle/` under
+      two versions never share a digest.
+  - option: >-
+      Keep `rollback_safe: false` and accept exit 12 on a failed dev update
+    rejected_because: >-
+      A flagged installation's timer does nothing. The dev VM would stop following
+      `:main` until a person cleared it, over failures that left the database as it
+      was.
+  - option: >-
+      Ask morzer to record `database_schema_produces` when a migration reports nothing
+    rejected_because: >-
+      It needs a morzer release, and a hook that reads the database reports what is
+      there rather than what was declared. Worth asking for as well.
+questions:
+  - id: Q-1
+    text: >-
+      Declare `rollback_safe: true` on dev builds (D-4)? morzer then rolls back between
+      releases on one schema, and returns from a failed update between them, and still
+      refuses across a schema change. Lean: yes. A release keeps the conjunction of
+      `components.yaml`'s two values.
+  - id: Q-2
+    text: >-
+      How often should the dev VM's update timer look at `:main`? Lean: every 15 minutes
+      (`update.schedule='*:0/15'`). A merge then reaches the VM within one CI run
+      and a quarter of an hour, and a tick with nothing new reads one manifest.
+  - id: Q-3
+    text: >-
+      Commit the workstation rehearsal (phase 4), or keep it out of the repository?
+      Lean: commit it. It is the only way to try a bundle's operations before a pull
+      request, and it reuses `smoke.sh`.
