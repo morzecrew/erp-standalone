@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-24T19:39:29Z'
+    title: >-
+      Phase 2's PgBouncer check reads each setting by its full path
+    md: >-
+      Phase 2's acceptance checked PgBouncer's settings with `yq -e '.services.pgbouncer.environment
+      | .A == 1 and .B == 1 and .C == 1'`. yq binds `|` tighter than `and`, so the
+      second and third comparisons read from the document's root, match nothing, and
+      the check can never pass. T-0011 went red on it twice with the settings in place.
+      The check now names each setting by its full path. No decision row changes.
