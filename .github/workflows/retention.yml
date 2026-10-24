@@ -1,0 +1,37 @@
+# Keep the bundle package inside the free plan's storage: the last 5 dev
+# versions, which a dev VM may still roll back to, and untagged versions for a
+# day. `main`, `stable` and every X.Y.Z are never selected.
+name: retention
+
+on:
+  schedule:
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  retention:
+    runs-on: ubuntu-24.04
+    # The package API is reached with GH_PAT, not GITHUB_TOKEN.
+    permissions: {}
+    steps:
+      - name: Keep the last 5 dev versions
+        uses: snok/container-retention-policy@4f22ef80902ad409ed55a99dc5133cc1250a0d03 # v3.0.0
+        with:
+          account: ${{ github.repository_owner }}
+          token: ${{ secrets.GH_PAT }}
+          image-names: erp-standalone
+          image-tags: "*-dev.* !main !stable"
+          tag-selection: tagged
+          keep-n-most-recent: 5
+          cut-off: 1s
+
+      - name: Drop untagged versions after a day
+        uses: snok/container-retention-policy@4f22ef80902ad409ed55a99dc5133cc1250a0d03 # v3.0.0
+        with:
+          account: ${{ github.repository_owner }}
+          token: ${{ secrets.GH_PAT }}
+          image-names: erp-standalone
+          tag-selection: untagged
+          cut-off: 1d

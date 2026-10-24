@@ -1,0 +1,25 @@
+# A pull request's bundle, pinned to every component's `main`, built and
+# smoke-tested, and never published. It signs with a key made in the job: the
+# dev and release keys are never given to a pull request.
+name: pr
+
+on:
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  bundle:
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/bundle.yml # zizmor: ignore[self-repository] -- actionlint reads only ./
+    with:
+      ref: ${{ github.sha }}
+      version: 0.0.0-pr.${{ github.event.pull_request.number }}
+      pin: dev
+      signing: ephemeral

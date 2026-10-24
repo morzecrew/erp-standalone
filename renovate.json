@@ -1,0 +1,45 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "customManagers": [
+    {
+      "description": "Infrastructure images pinned as repo:tag@sha256: in the bundle manifest",
+      "customType": "regex",
+      "managerFilePatterns": ["/^bundle/manifest\\.yaml$/"],
+      "matchStrings": [
+        "(?<depName>ghcr\\.io/[a-z0-9._/-]+):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "description": "Component releases named in components.yaml",
+      "customType": "regex",
+      "managerFilePatterns": ["/^components\\.yaml$/"],
+      "matchStrings": [
+        "image:\\s*(?<depName>\\S+)\\s*\\n\\s*version:\\s*(?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "The component pins in the manifest follow main and are written by scripts/pin.sh",
+      "matchFileNames": ["bundle/manifest.yaml"],
+      "matchPackageNames": [
+        "ghcr.io/morzecrew/erp-backend",
+        "ghcr.io/morzecrew/erp-migrations",
+        "ghcr.io/morzecrew/erp-frontend"
+      ],
+      "enabled": false
+    }
+  ],
+  "hostRules": [
+    {
+      "matchHost": "ghcr.io",
+      "hostType": "docker",
+      "username": "Misery7100",
+      "password": "{{ secrets.GHCR_READ_TOKEN }}"
+    }
+  ]
+}

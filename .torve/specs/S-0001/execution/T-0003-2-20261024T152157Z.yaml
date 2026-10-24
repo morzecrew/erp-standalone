@@ -1,0 +1,153 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0003
+phase: 3
+attempt: 2
+base: 88c3697f0c20c5e82ac768dde421d15042f90f26
+commit: 6e7eedc7b01966e96e2841797f284c4590914348
+at: '2026-10-24T15:21:57Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: D-14
+    grade: ASSUMED
+  - id: D-15
+    grade: ASSUMED
+  - id: D-16
+    grade: ASSUMED
+  - id: D-17
+    grade: ASSUMED
+  - id: D-18
+    grade: ASSUMED
+  - id: D-19
+    grade: ASSUMED
+  - id: D-20
+    grade: ASSUMED
+  - id: D-21
+    grade: ASSUMED
+  - id: D-22
+    grade: ASSUMED
+  - id: D-23
+    grade: OPEN
+  - id: D-24
+    grade: ASSUMED
+  - id: D-25
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-24T15:14:24Z'
+    claim: >-
+      No row says how a bundle is laid out in ghcr. Bundles are published as OCI artifacts
+      at ghcr.io/<owner>/<repo> (lowercased), each one manifest holding the morzer
+      archive erp-<version>.tar.zst as its only layer, artifact type application/vnd.morzecrew.morzer.release.v1,
+      pushed and tagged with oras.
+    evidence: >-
+      .github/workflows/bundle.yml:44 — ARTIFACT_TYPE and LAYER_TYPE beside it; the
+      push and channel tag are in the publish job
+    action: decided
+    proposal: >-
+      Add a row: the bundle package is ghcr.io/<owner>/<repo>, one OCI artifact per
+      version with artifact type application/vnd.morzecrew.morzer.release.v1 and the
+      tar.zst archive as its single layer, so the README's oras pull and morzer's
+      later oci transport agree on it.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-24T15:14:24Z'
+    claim: >-
+      D-16 says release.yml builds --version X.Y.Z but not which images it pins; D-15
+      and D-21 imply it. release.yml runs scripts/pin.sh --release before building,
+      so the bundle is built from the component releases components.yaml names. pr.yml
+      pins the components' main (uncommitted), as the D-16 rationale's 'uncommitted
+      pin' implies. main.yml pins in its own job and commits.
+    evidence: >-
+      .github/workflows/release.yml:47 — pin: release, handed to the reusable bundle
+      workflow's 'Pin the components' step
+    action: decided
+    proposal: >-
+      Amend D-16: release.yml runs scripts/pin.sh --release, and pr.yml runs scripts/pin.sh,
+      before building.
+  - decision: D-16
+    grade: ASSUMED
+    kind: departed
+    at: '2026-10-24T15:14:24Z'
+    claim: >-
+      A scheduled or dispatched main.yml run where no component moved re-derives a
+      version that is already published. Failing then would turn every no-op run red,
+      four times a day. main.yml still refuses to publish an existing version, but
+      skips smoke and publish with a notice instead of failing. release.yml, and the
+      publish step itself (in case of a race), still fail on an existing tag.
+    evidence: >-
+      .github/workflows/main.yml:120 — on-existing: skip; bundle.yml's 'Refuse a published
+      version' step applies it, and release.yml passes on-existing: fail
+    action: departed
+    proposal: >-
+      Amend D-16: on main an already-published version means nothing changed and the
+      run succeeds without publishing; on a release it is an error.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-24T15:14:24Z'
+    claim: >-
+      D-19 does not say which mode the smoke installs use. Every smoke init runs with
+      --mode dev, --require-signature, --no-recovery-recipient and --install-units=false.
+      The operator secrets get throwaway values piped to morzer secret set, one value
+      per pair. The pinned tools install through one script beside the workflows,
+      since the scope cannot hold a composite action. zstd is pinned to its Ubuntu
+      24.04 package version, because zstd publishes no Linux binary. age 1.2.1 and
+      minisign 0.12 are pinned to the archive hashes taken on 2026-10-24.
+    evidence: >-
+      .github/workflows/scripts/smoke.sh:35 — the init flags; scripts/install-tools.sh:20
+      is the zstd pin
+    action: decided
+    proposal: >-
+      Add to D-19: smoke installs use --mode dev on every channel; and name .github/workflows/scripts/
+      as where workflow helpers live.
+  - decision: D-19
+    grade: ASSUMED
+    at: '2026-10-24T15:18:31Z'
+    attempt: 2
+    claim: >-
+      GitHub checks every job of a called workflow against the caller's permissions
+      when it loads, whatever the job's if:, so a publish job with packages: write
+      inside the shared bundle.yml made pr.yml (packages: read) fail to start. Publishing
+      now lives in its own reusable workflow, publish.yml, which only main.yml and
+      release.yml call, needing bundle.yml's call and so its smoke jobs. bundle.yml's
+      jobs all hold packages: read at most. D-19 still holds: publishing is a separate
+      job that needs the smoke jobs, and nothing from the bundle runs alongside packages:
+      write.
+    evidence: >-
+      .github/workflows/publish.yml:36-40 — the publish job and its packages: write;
+      .github/workflows/main.yml:124-135 and .github/workflows/release.yml call it
+      after bundle; .github/workflows/pr.yml:16-19 calls only bundle.yml
+    action: decided
+    notes: >-
+      Attempt 1's ghcr-layout entry cited .github/workflows/bundle.yml:44 for ARTIFACT_TYPE
+      and LAYER_TYPE. Those now sit at .github/workflows/publish.yml:31-33, and the
+      push and channel tag are in its publish job.

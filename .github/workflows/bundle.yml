@@ -1,0 +1,323 @@
+# Build, sign and smoke-test one bundle; main.yml, release.yml and pr.yml call
+# it, and main.yml and release.yml then call publish.yml with its outputs.
+#
+# Bundle code runs as root in the smoke jobs, so no job here can write
+# packages: a called workflow's jobs are checked against the caller's grant
+# when it loads, and pr.yml grants only `packages: read`.
+name: bundle
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to build
+        type: string
+        required: true
+      version:
+        description: Version to stamp; empty derives it from git
+        type: string
+        default: ""
+      pin:
+        description: "Pin the components first: none, dev (their main) or release (components.yaml)"
+        type: string
+        default: none
+      channel:
+        description: "Channel the caller publishes to (main or stable); empty skips the published-version check"
+        type: string
+        default: ""
+      signing:
+        description: "Key to sign with: dev, release, or ephemeral (made in the job)"
+        type: string
+        required: true
+      on-existing:
+        description: "When the version is already published: fail, or skip the run"
+        type: string
+        default: fail
+    secrets:
+      minisign-key:
+        description: The minisign secret key, for dev and release signing
+        required: false
+    outputs:
+      version:
+        description: The version the bundle was built as
+        value: ${{ jobs.build.outputs.version }}
+      archive:
+        description: The archive's file name in the `bundle` artifact
+        value: ${{ jobs.build.outputs.archive }}
+      proceed:
+        description: "'true' when the version is not published yet; the caller needs this workflow, so its smoke tests have passed"
+        value: ${{ jobs.build.outputs.proceed }}
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      version: ${{ steps.build.outputs.version }}
+      archive: ${{ steps.archive.outputs.archive }}
+      pubkey: ${{ steps.sign.outputs.pubkey }}
+      proceed: ${{ steps.existing.outputs.proceed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          # --version-from-git describes the commit from the reachable tags.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install tools
+        run: bash .github/workflows/scripts/install-tools.sh minisign zstd morzer oras yq
+
+      - name: Log in to ghcr
+        env:
+          TOKEN: ${{ github.token }}
+        run: printf %s "${TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+
+      - name: Pin the components
+        if: inputs.pin != 'none'
+        env:
+          PIN: ${{ inputs.pin }}
+        run: |
+          case "${PIN}" in
+          dev) scripts/pin.sh ;;
+          release) scripts/pin.sh --release ;;
+          *) echo "::error::unknown pin mode '${PIN}'"; exit 1 ;;
+          esac
+
+      - name: Build
+        id: build
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "${VERSION}" ]; then
+            set -- --version "${VERSION}"
+          else
+            set -- --version-from-git
+          fi
+          # Under --json morzer's error is only in the envelope on stdout.
+          if ! out=$(morzer release build bundle "$@" --json); then
+            printf '%s\n' "${out}" >&2
+            exit 1
+          fi
+          version=$(jq -r '.data.version' <<<"${out}")
+          echo "version=${version}" >>"${GITHUB_OUTPUT}"
+
+      - name: Refuse a published version
+        id: existing
+        env:
+          VERSION: ${{ steps.build.outputs.version }}
+          CHANNEL: ${{ inputs.channel }}
+          ON_EXISTING: ${{ inputs.on-existing }}
+        run: |
+          ref="ghcr.io/${GITHUB_REPOSITORY,,}:${VERSION}"
+          proceed=true
+          if [ -n "${CHANNEL}" ]; then
+            status=0
+            bash .github/workflows/scripts/registry.sh exists "${ref}" || status=$?
+            case "${status}" in
+            0)
+              if [ "${ON_EXISTING}" = skip ]; then
+                echo "::notice::${ref} is already published; nothing new to build"
+                echo "${ref} is already published; nothing new to build." >>"${GITHUB_STEP_SUMMARY}"
+                proceed=false
+              else
+                echo "::error::${ref} is already published, and a version never changes content"
+                exit 1
+              fi
+              ;;
+            1) ;;
+            *) exit 1 ;;
+            esac
+          fi
+          echo "proceed=${proceed}" >>"${GITHUB_OUTPUT}"
+
+      - name: Sign
+        id: sign
+        if: steps.existing.outputs.proceed == 'true'
+        env:
+          SIGNING: ${{ inputs.signing }}
+          MINISIGN_KEY: ${{ secrets.minisign-key }}
+          # Both, chosen below: `release && RELEASE || DEV` falls back to the dev
+          # key when the release variable is unset.
+          DEV_PUBKEY: ${{ vars.MINISIGN_DEV_PUBKEY }}
+          RELEASE_PUBKEY: ${{ vars.MINISIGN_RELEASE_PUBKEY }}
+        run: |
+          umask 077
+          key="${RUNNER_TEMP}/minisign.key"
+          trap 'rm -f "${key}"' EXIT
+          case "${SIGNING}" in
+          ephemeral)
+            minisign -G -W -p "${RUNNER_TEMP}/ephemeral.pub" -s "${key}" >/dev/null
+            pubkey=$(sed -n 2p "${RUNNER_TEMP}/ephemeral.pub")
+            ;;
+          dev | release)
+            [ -n "${MINISIGN_KEY}" ] || { echo "::error::no ${SIGNING} signing key was passed"; exit 1; }
+            if [ "${SIGNING}" = release ]; then pubkey=${RELEASE_PUBKEY}; else pubkey=${DEV_PUBKEY}; fi
+            [ -n "${pubkey}" ] || { echo "::error::no ${SIGNING} public key variable is set"; exit 1; }
+            printf '%s\n' "${MINISIGN_KEY}" >"${key}"
+            chmod 0600 "${key}"
+            ;;
+          *) echo "::error::unknown signing '${SIGNING}'"; exit 1 ;;
+          esac
+          minisign -S -s "${key}" -m bundle/SHA256SUMS >/dev/null
+          morzer release verify bundle --signing-key "${pubkey}"
+          echo "pubkey=${pubkey}" >>"${GITHUB_OUTPUT}"
+
+      - name: Archive
+        id: archive
+        if: steps.existing.outputs.proceed == 'true'
+        env:
+          VERSION: ${{ steps.build.outputs.version }}
+        run: |
+          archive="erp-${VERSION}.tar.zst"
+          mkdir -p "${RUNNER_TEMP}/dist"
+          if ! out=$(morzer release archive bundle -o "${RUNNER_TEMP}/dist/${archive}" --json); then
+            printf '%s\n' "${out}" >&2
+            exit 1
+          fi
+          digest=$(jq -r '.data.digest' <<<"${out}")
+          echo "archive=${archive}" >>"${GITHUB_OUTPUT}"
+          {
+            echo "## erp ${VERSION}"
+            echo
+            echo "| Component | Tag | Digest |"
+            echo "|---|---|---|"
+            for key in backend migrations frontend; do
+              pin=$(yq -r ".images.${key}" bundle/manifest.yaml)
+              image=${pin%@*}
+              echo "| ${key} | \`${image##*:}\` | \`${pin##*@}\` |"
+            done
+            echo
+            echo "Bundle digest: \`${digest}\`"
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.existing.outputs.proceed == 'true'
+        with:
+          name: bundle
+          path: ${{ runner.temp }}/dist/${{ steps.archive.outputs.archive }}
+          if-no-files-found: error
+          retention-days: 7
+
+  smoke-install:
+    needs: build
+    if: needs.build.outputs.proceed == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Free the disk the release requires
+        run: bash .github/workflows/scripts/smoke.sh free-disk
+
+      - name: Install tools
+        run: bash .github/workflows/scripts/install-tools.sh minisign zstd morzer sops age
+
+      - name: Log root's Docker in to ghcr
+        env:
+          TOKEN: ${{ github.token }}
+        run: printf %s "${TOKEN}" | sudo docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bundle
+          path: ${{ runner.temp }}/dist
+
+      - name: Install the bundle
+        env:
+          ARCHIVE: ${{ needs.build.outputs.archive }}
+          PUBKEY: ${{ needs.build.outputs.pubkey }}
+        run: bash .github/workflows/scripts/smoke.sh install "${RUNNER_TEMP}/dist/${ARCHIVE}" "${PUBKEY}"
+
+      - name: Probe
+        run: bash .github/workflows/scripts/smoke.sh probe
+
+      - name: Diagnose
+        if: failure()
+        run: bash .github/workflows/scripts/smoke.sh diagnose
+
+  smoke-update:
+    needs: build
+    if: needs.build.outputs.proceed == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Install tools
+        run: bash .github/workflows/scripts/install-tools.sh minisign zstd morzer sops age oras
+
+      - name: Log in to ghcr
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          printf %s "${TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+          printf %s "${TOKEN}" | sudo docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+
+      - name: Fetch the published main
+        id: main
+        run: |
+          ref="ghcr.io/${GITHUB_REPOSITORY,,}:main"
+          status=0
+          bash .github/workflows/scripts/registry.sh exists "${ref}" || status=$?
+          case "${status}" in
+          0)
+            oras pull "${ref}" -o "${RUNNER_TEMP}/main"
+            archive=$(find "${RUNNER_TEMP}/main" -maxdepth 1 -name '*.tar.zst' -print -quit)
+            [ -n "${archive}" ] || { echo "::error::${ref} holds no bundle archive"; exit 1; }
+            echo "archive=${archive}" >>"${GITHUB_OUTPUT}"
+            ;;
+          1) echo "::notice::${ref} is not published yet; only the fresh install is proven" ;;
+          *) exit 1 ;;
+          esac
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.main.outputs.archive != ''
+        with:
+          name: bundle
+          path: ${{ runner.temp }}/dist
+
+      - name: Free the disk the release requires
+        if: steps.main.outputs.archive != ''
+        run: bash .github/workflows/scripts/smoke.sh free-disk
+
+      - name: Install the published main
+        if: steps.main.outputs.archive != ''
+        env:
+          ARCHIVE: ${{ steps.main.outputs.archive }}
+          DEV_PUBKEY: ${{ vars.MINISIGN_DEV_PUBKEY }}
+          PUBKEY: ${{ needs.build.outputs.pubkey }}
+        run: bash .github/workflows/scripts/smoke.sh install "${ARCHIVE}" "${DEV_PUBKEY}" "${PUBKEY}"
+
+      - name: Probe main
+        if: steps.main.outputs.archive != ''
+        run: bash .github/workflows/scripts/smoke.sh probe
+
+      - name: Update to the new bundle
+        if: steps.main.outputs.archive != ''
+        env:
+          ARCHIVE: ${{ needs.build.outputs.archive }}
+        run: bash .github/workflows/scripts/smoke.sh update "${RUNNER_TEMP}/dist/${ARCHIVE}"
+
+      - name: Probe the update
+        if: steps.main.outputs.archive != ''
+        run: bash .github/workflows/scripts/smoke.sh probe
+
+      - name: Diagnose
+        if: failure()
+        run: bash .github/workflows/scripts/smoke.sh diagnose
+

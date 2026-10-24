@@ -1,0 +1,19 @@
+# The component releases this bundle is built from.
+#
+# `scripts/pin.sh --release` reads the two versions here and refuses anything
+# that is not `X.Y.Z`; plain `scripts/pin.sh` pins their `main` instead. The
+# migrations image always ships beside the backend, so it takes the backend's
+# version. `rollback_safe` and `notes` say what a release may be rolled back
+# to and what changed, for the release that reads this file.
+#
+# These versions are placeholders; the first release replaces them.
+backend:
+  image: ghcr.io/morzecrew/erp-backend
+  version: 0.0.0
+  rollback_safe: false
+  notes: Placeholder until the first backend release.
+frontend:
+  image: ghcr.io/morzecrew/erp-frontend
+  version: 0.0.0
+  rollback_safe: false
+  notes: Placeholder until the first frontend release.

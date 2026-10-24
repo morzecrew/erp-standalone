@@ -1,0 +1,136 @@
+# The dev channel: pin every component's `main`, commit a changed pin, and
+# build and smoke-test it (bundle.yml), then publish `:<version>` and move
+# `:main` (publish.yml).
+#
+# A dispatch only says "look now": the pins are re-resolved from the registry
+# and the payload is never read. The schedule catches a dispatch that was lost.
+name: main
+
+on:
+  repository_dispatch:
+    types: [component-published]
+  push:
+    branches: [main]
+    paths:
+      - bundle/**
+      - components.yaml
+  workflow_dispatch:
+  schedule:
+    - cron: "23 */6 * * *"
+
+permissions: {}
+
+concurrency:
+  group: main-bundle
+  cancel-in-progress: false
+
+jobs:
+  pin:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: read
+    outputs:
+      sha: ${{ steps.pin.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Install tools
+        run: bash .github/workflows/scripts/install-tools.sh yq
+
+      - name: Log in to ghcr
+        env:
+          TOKEN: ${{ github.token }}
+        run: printf %s "${TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+
+      # A push made with GITHUB_TOKEN starts no run of its own: the commit is
+      # built below, in this run. A lost race starts over from the new main.
+      - name: Pin and commit
+        id: pin
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          auth=$(printf 'x-access-token:%s' "${TOKEN}" | base64 -w0)
+          echo "::add-mask::${auth}"
+          remote() { git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}" "$@"; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # The component's commit when its image carries the OCI revision
+          # label, else the image's own digest.
+          sha7() {
+            local rev digest
+            rev=$(docker buildx imagetools inspect "$1" --format '{{json .Image.Config.Labels}}' 2>/dev/null \
+              | jq -r 'if type == "object" then (.["org.opencontainers.image.revision"] // empty) else empty end' 2>/dev/null || true)
+            if [ -n "${rev}" ]; then
+              printf '%s' "${rev:0:7}"
+            else
+              digest=${1##*@sha256:}
+              printf '%s' "${digest:0:7}"
+            fi
+          }
+
+          join() { local IFS=,; printf '%s' "$*" | sed 's/,/, /g'; }
+
+          pushed=false
+          for attempt in 1 2 3 4 5; do
+            remote fetch --quiet origin main
+            git reset --quiet --hard FETCH_HEAD
+            scripts/pin.sh
+            if git diff --quiet -- bundle/manifest.yaml; then
+              echo "No component moved."
+              pushed=true
+              break
+            fi
+            names=()
+            shas=()
+            for key in backend migrations frontend; do
+              old=$(git show HEAD:bundle/manifest.yaml | yq -r ".images.${key}")
+              new=$(yq -r ".images.${key}" bundle/manifest.yaml)
+              [ "${old}" = "${new}" ] && continue
+              names+=("${key}")
+              shas+=("$(sha7 "${new}")")
+            done
+            message="⬆️ build(deps): bump $(join "${names[@]}") to $(join "${shas[@]}")"
+            git commit --quiet -m "${message}" -- bundle/manifest.yaml
+            if remote push --quiet origin HEAD:main; then
+              echo "Pushed: ${message}"
+              pushed=true
+              break
+            fi
+            echo "::warning::lost the race to main (attempt ${attempt}); re-resolving"
+          done
+          [ "${pushed}" = true ] || { echo "::error::could not push the pin to main"; exit 1; }
+          echo "sha=$(git rev-parse HEAD)" >>"${GITHUB_OUTPUT}"
+
+  bundle:
+    needs: pin
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/bundle.yml # zizmor: ignore[self-repository] -- actionlint reads only ./
+    with:
+      ref: ${{ needs.pin.outputs.sha }}
+      channel: main
+      signing: dev
+      # Nothing moved since the last run: the version is already published.
+      on-existing: skip
+    secrets:
+      minisign-key: ${{ secrets.MINISIGN_DEV_KEY }}
+
+  publish:
+    needs: [pin, bundle]
+    if: needs.bundle.outputs.proceed == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/publish.yml # zizmor: ignore[self-repository] -- actionlint reads only ./
+    with:
+      ref: ${{ needs.pin.outputs.sha }}
+      version: ${{ needs.bundle.outputs.version }}
+      archive: ${{ needs.bundle.outputs.archive }}
+      channel: main

@@ -1,0 +1,286 @@
+# The ERP behind one origin. `edge` is the only service that publishes ports;
+# everything else talks on the project network.
+#
+# Compose sees only what morzer gives it: ERP_IMAGE_<KEY> for each pinned
+# image, ERP_PARAM_<NAME> for each parameter, ERP_SECRETS_DIR, ERP_RELEASE_DIR,
+# ERP_DOMAIN (absent without --domain) and ERP_VERSION. An image is named only
+# through its ERP_IMAGE_ variable, so what runs is what the manifest pins.
+#
+# Secrets reach a container only as files under /run/secrets, read through a
+# *_FILE variable; secrets.schema.yaml gives each file to the user that reads it.
+
+# The backend's settings, shared by backend, worker and bootstrap. It names only
+# files all three are given: envfile-exec exits 78 on one it cannot read.
+x-backend-environment: &backend-environment
+  APP__LOG_LEVEL: ${ERP_PARAM_LOG_LEVEL:-info}
+  # Through PgBouncer, on the image's transaction pooling and pool of 30.
+  POSTGRES__USE_PGBOUNCER: "true"
+  POSTGRES__PGBOUNCER_HOST: pgbouncer
+  POSTGRES__PGBOUNCER_PORT: 6432
+  POSTGRES__HOST: postgres
+  POSTGRES__PORT: 5432
+  POSTGRES__USER: postgres
+  # erp-backend's settings ignore an unknown name, and envfile-exec reads a
+  # `*_FILE` only for the names its image lists, so each name here is theirs.
+  POSTGRES__DATABASE: erp
+  POSTGRES__PASSWORD_FILE: /run/secrets/postgres_password
+  REDIS__HOST: valkey
+  REDIS__PORT: 6379
+  REDIS__PASSWORD_FILE: /run/secrets/valkey_password
+  S3__HOST: rustfs
+  S3__PORT: 9000
+  S3__USER: erp
+  S3__PASSWORD_FILE: /run/secrets/s3_secret_key
+  AUTH__ACCESS_SECRET_KEY_B64_FILE: /run/secrets/access_secret_key
+  AUTH__REFRESH_PEPPER_B64_FILE: /run/secrets/refresh_pepper
+  AUTH__API_KEY_PEPPER_B64_FILE: /run/secrets/api_key_pepper
+  # One origin: the edge serves the API and the frontend together, so there is
+  # no cross-origin caller to allow and no cookie domain to widen.
+  AUTH__COOKIE_DOMAIN: ""
+  AUTH__ALLOWED_ORIGINS: "[]"
+
+x-backend-depends-on: &backend-depends-on
+  pgbouncer:
+    condition: service_healthy
+  valkey:
+    condition: service_healthy
+  rustfs:
+    condition: service_healthy
+
+services:
+  postgres:
+    image: ${ERP_IMAGE_POSTGRES}
+    restart: unless-stopped
+    environment:
+      # Not `erp`: the role's name heads the search path, where it would shadow
+      # the `erp` schema the migrations create and name objects by.
+      POSTGRES_USER: postgres
+      POSTGRES_DB: erp
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      # The image's small-instance settings.
+      PG_CONF__shared_buffers: 128MB
+      PG_CONF__maintenance_work_mem: 64MB
+      PG_CONF__min_wal_size: 80MB
+      PG_CONF__max_wal_size: 1GB
+    configs:
+      # pg_cron is created in the application's database, and the image points
+      # it at `postgres`. A dotted key cannot travel through PG_CONF__.
+      - source: postgres-cron
+        target: /etc/postgresql/conf.d/13-cron.conf
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "--host=127.0.0.1", "--username=postgres", "--dbname=erp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  pgbouncer:
+    image: ${ERP_IMAGE_PGBOUNCER}
+    restart: unless-stopped
+    environment:
+      PGBOUNCER_DB_HOST: postgres
+      PGBOUNCER_DB_USER: postgres
+      PGBOUNCER_DB_PASSWORD_FILE: /run/secrets/pgbouncer_password
+    secrets:
+      - pgbouncer_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "pg_isready", "--host=127.0.0.1", "--port=6432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  valkey:
+    image: ${ERP_IMAGE_VALKEY}
+    restart: unless-stopped
+    environment:
+      # Durable, not a cache: every document's number_id is a counter here. AOF
+      # loses at most a second of increments, and a full memory refuses writes
+      # rather than evicting a counter.
+      VALKEY_PERSISTENCE: aof
+      VALKEY_MAXMEMORY_POLICY: noeviction
+      VALKEY_PASSWORD_FILE: /run/secrets/valkey_password
+    secrets:
+      - valkey_password
+    volumes:
+      - valkey-data:/data
+    deploy:
+      resources:
+        limits:
+          # maxmemory follows this; without it the image falls back to 256 MiB.
+          memory: 1g
+    healthcheck:
+      # Authenticated, so a valkey that refuses its own password is unhealthy.
+      test: ["CMD-SHELL", "VALKEYCLI_AUTH=\"$$(cat /run/secrets/valkey_password)\" valkey-cli --no-auth-warning ping | grep -qx PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  rustfs:
+    image: ${ERP_IMAGE_RUSTFS}
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: erp
+      RUSTFS_SECRET_KEY_FILE: /run/secrets/rustfs_secret_key
+    secrets:
+      - rustfs_secret_key
+    volumes:
+      - rustfs-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:9000/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  backend:
+    image: ${ERP_IMAGE_BACKEND}
+    restart: unless-stopped
+    command: ["api"]
+    environment:
+      <<: *backend-environment
+      API__WORKERS: ${ERP_PARAM_API_WORKERS:-2}
+    secrets: &backend-secrets
+      - postgres_password
+      - valkey_password
+      - s3_secret_key
+      - access_secret_key
+      - refresh_pepper
+      - api_key_pepper
+    depends_on: *backend-depends-on
+
+  worker:
+    image: ${ERP_IMAGE_BACKEND}
+    restart: unless-stopped
+    command: ["bg"]
+    environment: *backend-environment
+    secrets: *backend-secrets
+    depends_on: *backend-depends-on
+
+  frontend:
+    image: ${ERP_IMAGE_FRONTEND}
+    restart: unless-stopped
+
+  edge:
+    image: ${ERP_IMAGE_CADDY}
+    restart: unless-stopped
+    environment:
+      # With --domain, HTTPS on the domain and HTTP redirected to it; without
+      # one, plain HTTP. :8081 is always plain HTTP, for morzer's checks.
+      CADDY_EDGE_ADDRESS: "${ERP_DOMAIN:-:80}, :8081"
+      CADDY_AUTO_HTTPS: "on"
+      # A 50 MiB attachment passes; past 51 MiB is a 413. The WAF follows it.
+      CADDY_REQUEST_BODY_MAX_SIZE: 51MiB
+      # Logs what CRS would refuse and blocks nothing, until it is tuned.
+      CADDY_WAF_ENGINE: DetectionOnly
+    ports:
+      - "${ERP_PARAM_HTTP_PORT:-80}:80"
+      - "${ERP_PARAM_HTTPS_PORT:-443}:443"
+      - "127.0.0.1:${ERP_PARAM_HEALTH_PORT:-8081}:8081"
+    volumes:
+      - ${ERP_RELEASE_DIR:?ERP_RELEASE_DIR is set by morzer}/edge/erp.caddy:/etc/caddy/config.d/erp.caddy:ro
+      # Certificates: losing them means asking Let's Encrypt again.
+      - edge-data:/data
+    depends_on:
+      - backend
+      - frontend
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/__platform_healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # The migrate steps. `up` leaves the `ops` profile out; morzer's
+  # `docker compose run` still reaches them.
+
+  flyway:
+    image: ${ERP_IMAGE_FLYWAY}
+    profiles: [ops]
+    restart: "no"
+    command: ["migrate"]
+    environment:
+      # Straight to Postgres: flyway's session locks break under transaction
+      # pooling.
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/erp
+      FLYWAY_USER: postgres
+      FLYWAY_PASSWORD_FILE: /run/secrets/postgres_password
+      FLYWAY_CONNECT_RETRIES: 10
+      # As erp-backend's own stack runs them: unprefixed versioned files, and
+      # repeatables below, found by a recursive scan.
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+      FLYWAY_SQL_MIGRATION_PREFIX: ""
+      FLYWAY_SQL_MIGRATION_SUFFIXES: .sql,.psql
+      FLYWAY_OUTPUT_QUERY_RESULTS: "false"
+    secrets:
+      - postgres_password
+    volumes:
+      # The migrations ship as data in their own image, never baked into
+      # flyway's.
+      - type: image
+        source: ${ERP_IMAGE_MIGRATIONS}
+        target: /flyway/sql
+        image:
+          subpath: flyway/sql
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  bootstrap:
+    image: ${ERP_IMAGE_BACKEND}
+    profiles: [ops]
+    restart: "no"
+    command: ["bootstrap"]
+    environment:
+      <<: *backend-environment
+      # Only here: in the shared settings it would stop the backend and worker,
+      # which are never given the file.
+      APP__ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+    secrets:
+      - postgres_password
+      - valkey_password
+      - s3_secret_key
+      - access_secret_key
+      - refresh_pepper
+      - api_key_pepper
+      - admin_password
+    depends_on: *backend-depends-on
+
+configs:
+  postgres-cron:
+    content: |
+      cron.database_name = 'erp'
+
+secrets:
+  postgres_password:
+    file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/postgres_password
+  pgbouncer_password:
+    file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/pgbouncer_password
+  valkey_password:
+    file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/valkey_password
+  s3_secret_key:
+    file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/s3_secret_key
+  rustfs_secret_key:
+    file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/rustfs_secret_key
+  access_secret_key:
+    file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/access_secret_key
+  refresh_pepper:
+    file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/refresh_pepper
+  api_key_pepper:
+    file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/api_key_pepper
+  admin_password:
+    file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/admin_password
+
+volumes:
+  postgres-data:
+  valkey-data:
+  rustfs-data:
+  edge-data:

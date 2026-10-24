@@ -1,0 +1,144 @@
+# yaml-language-server: $schema=https://morzecrew.github.io/morzer/schemas/selfhost-v1alpha1-manifest.json
+#
+# The whole ERP as one morzer release: erp-backend, erp-frontend and their
+# infrastructure behind one Caddy edge.
+api_version: selfhost/v1alpha1
+kind: application-release
+
+metadata:
+  name: erp
+  # Stamped by `morzer release build --version`, never by hand.
+  version: 0.0.0
+  description: Morze ERP -- backend, frontend and infrastructure behind one edge
+  vendor: morzecrew
+  release_notes: RELEASE.md
+
+providers:
+  runtime: {name: compose}
+  secrets: {name: sops-age}
+  health: {name: http}
+
+runtimes:
+  compose:
+    files:
+      - compose/compose.yaml
+    options:
+      # Every volume lives under this name; changing it orphans the data.
+      project: erp
+
+requirements:
+  architectures: [amd64]
+  tools:
+    # The first releases that mount an image as a volume, with a subpath:
+    # Engine 28.0.0 (API 1.48) and Compose v2.35.0. flyway reads the
+    # migrations that way.
+    docker: ">=28.0.0"
+    compose: ">=2.35.0"
+  memory: 4GiB
+  disk: 20GiB
+  ports:
+    - "{{ .Parameters.http_port }}"
+    - "{{ .Parameters.https_port }}"
+    - "{{ .Parameters.health_port }}"
+
+parameters:
+  http_port:
+    type: port
+    default: 80
+    description: Port the edge serves HTTP on
+    services: [edge]
+  https_port:
+    type: port
+    default: 443
+    description: Port the edge serves HTTPS on
+    services: [edge]
+  health_port:
+    type: port
+    default: 8081
+    description: Loopback port the edge serves plain HTTP on, for health checks
+    services: [edge]
+  api_workers:
+    type: int
+    default: 2
+    description: API worker processes in the backend
+    services: [backend]
+  log_level:
+    type: enum
+    values: [debug, info, warning, error]
+    default: info
+    description: Log verbosity of the backend and the worker
+    services: [backend, worker]
+
+# Infrastructure pinned by digest as `repo:tag@sha256:`, the tag kept for
+# Renovate. The three components carry `main` and an all-zero digest until
+# scripts/pin.sh writes their real digests.
+images:
+  postgres: ghcr.io/morzecrew/postgres:18.6@sha256:e14f64c180f440155619e0114dd390d14d11ad5f4aac2cb15a7dd78ba877fbc5
+  pgbouncer: ghcr.io/morzecrew/pgbouncer:1.26.1@sha256:fd180619687282ae265e9cc9d98def990a0b05b273c23e95a028c32924e880dd
+  valkey: ghcr.io/morzecrew/valkey:9.1@sha256:f8b44ceb820516e86706078db0ec602d76b0ff6ac185b3addef601f229ecb1f8
+  rustfs: ghcr.io/morzecrew/rustfs:1.0.3@sha256:0ce6d4e5fdd870294d58e060268334964295f7551e2d10cbae0bd2ceefb19931
+  flyway: ghcr.io/morzecrew/flyway:13.11@sha256:82de3f12a8be91b2f588a33a26345ee7ba49797c29568b4241e4163432e0deeb
+  caddy: ghcr.io/morzecrew/caddy:2.11.7@sha256:2b28afacdb916066cc778ea771af55edaf8191fab03cf5667d5acf930e18bac1
+  backend: ghcr.io/morzecrew/erp-backend:main@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  migrations: ghcr.io/morzecrew/erp-migrations:main@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  frontend: ghcr.io/morzecrew/erp-frontend:main@sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+secrets:
+  source: /etc/erp/secrets.sops.yaml
+  render_to: /run/erp/secrets
+  schema: secrets.schema.yaml
+
+operations:
+  # Both steps run on every apply and update, before services start, and both
+  # are harmless to repeat: flyway with nothing pending exits 0, and bootstrap
+  # keeps the catalogs and admin that exist. No step seeds data.
+  migrate:
+    - kind: runtime-service
+      service: flyway
+      timeout: 15m
+    - kind: runtime-service
+      service: bootstrap
+      timeout: 5m
+  smoke_test:
+    kind: hook
+    command: ["hooks/smoke-test"]
+    timeout: 5m
+
+backup:
+  volumes:
+    # Postgres and Valkey stop together, so a restore never pairs Valkey's
+    # number_id counters with a database holding higher numbers.
+    postgres-data: {consistency: cold}
+    valkey-data: {consistency: cold}
+    rustfs-data: {consistency: cold}
+    # Certificates and ACME state, written once and read back.
+    edge-data: {consistency: hot}
+
+# Both on the edge's loopback health port, which always serves plain HTTP.
+health:
+  checks:
+    - name: edge
+      type: http
+      url: "http://127.0.0.1:{{ .Parameters.health_port }}/__platform_healthz"
+      timeout: 5s
+      start_period: 60s
+    - name: api
+      type: http
+      url: "http://127.0.0.1:{{ .Parameters.health_port }}/health"
+      timeout: 5s
+      start_period: 120s
+
+compatibility:
+  # The migrations image's `tech.morze.erp.schema` label, written by
+  # scripts/pin.sh; 0 until it runs. Each release reads only the schema it
+  # produces, so a schema change cannot be rolled back without a restore.
+  database_schema_produces: 0
+  database_schema_min: 0
+  database_schema_max: 0
+  rollback_safe: false
+  # The first manager that reads a secret's `owner`.
+  min_manager_version: "0.6.0"
+
+retention:
+  releases: 3
+  backups: 7
