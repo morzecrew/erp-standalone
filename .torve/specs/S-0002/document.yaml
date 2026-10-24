@@ -7,7 +7,7 @@ change:
   type: fix
   scope: bundle
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0001]
 informed_by: []
 supersedes: []

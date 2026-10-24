@@ -2,7 +2,7 @@
 
 ## Decisions governing `tests/pin/`
 
-### S-0002/D-4 — `ASSUMED` (A dev version per bundle change, and the operations rehearsed) — implementation: none
+### S-0002/D-4 — `ASSUMED` (A dev version per bundle change, and the operations rehearsed)
 
 The committed manifest declares `compatibility.rollback_safe: true`. `scripts/pin.sh --release` writes `rollback_safe` as `components.yaml`'s `backend.rollback_safe` and `frontend.rollback_safe` together, true only when both are, and refuses a value that is not `true` or `false`. Plain `pin.sh` leaves it as committed.
 
