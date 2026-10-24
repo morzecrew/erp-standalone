@@ -121,9 +121,10 @@ sudo morzer config set \
 - `update.check` must be on before anything follows a channel: a check or an
   update contacts the registry, and the manager will not do that unasked.
 - `update.auto_apply=true` is what makes the timer install rather than only
-  notice, and it also needs the required signature above. Even then, an
-  unattended tick installs only a release that cannot need a database restore;
-  a release that moves the schema waits for a person, on the dev VM too.
+  notice, and it also needs the required signature above. On a customer VM an
+  unattended tick then installs only a release that cannot need a database
+  restore, and one that moves the schema waits for a person. The dev VM installs
+  whatever its channel offers, schema changes included.
 - `backup.before_update=false` is the dev VM's choice: it skips the pre-update
   backup, which a sandbox does not need and which costs disk on every merge.
 

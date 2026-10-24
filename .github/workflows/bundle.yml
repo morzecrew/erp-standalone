@@ -94,9 +94,14 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           if [ -n "${VERSION}" ]; then
-            out=$(morzer release build bundle --version "${VERSION}" --json)
+            set -- --version "${VERSION}"
           else
-            out=$(morzer release build bundle --version-from-git --json)
+            set -- --version-from-git
+          fi
+          # Under --json morzer's error is only in the envelope on stdout.
+          if ! out=$(morzer release build bundle "$@" --json); then
+            printf '%s\n' "${out}" >&2
+            exit 1
           fi
           version=$(jq -r '.data.version' <<<"${out}")
           echo "version=${version}" >>"${GITHUB_OUTPUT}"
@@ -136,7 +141,10 @@ jobs:
         env:
           SIGNING: ${{ inputs.signing }}
           MINISIGN_KEY: ${{ secrets.minisign-key }}
-          PUBKEY: ${{ inputs.signing == 'release' && vars.MINISIGN_RELEASE_PUBKEY || vars.MINISIGN_DEV_PUBKEY }}
+          # Both, chosen below: `release && RELEASE || DEV` falls back to the dev
+          # key when the release variable is unset.
+          DEV_PUBKEY: ${{ vars.MINISIGN_DEV_PUBKEY }}
+          RELEASE_PUBKEY: ${{ vars.MINISIGN_RELEASE_PUBKEY }}
         run: |
           umask 077
           key="${RUNNER_TEMP}/minisign.key"
@@ -148,10 +156,10 @@ jobs:
             ;;
           dev | release)
             [ -n "${MINISIGN_KEY}" ] || { echo "::error::no ${SIGNING} signing key was passed"; exit 1; }
-            [ -n "${PUBKEY}" ] || { echo "::error::no ${SIGNING} public key variable is set"; exit 1; }
+            if [ "${SIGNING}" = release ]; then pubkey=${RELEASE_PUBKEY}; else pubkey=${DEV_PUBKEY}; fi
+            [ -n "${pubkey}" ] || { echo "::error::no ${SIGNING} public key variable is set"; exit 1; }
             printf '%s\n' "${MINISIGN_KEY}" >"${key}"
             chmod 0600 "${key}"
-            pubkey=${PUBKEY}
             ;;
           *) echo "::error::unknown signing '${SIGNING}'"; exit 1 ;;
           esac
@@ -167,7 +175,10 @@ jobs:
         run: |
           archive="erp-${VERSION}.tar.zst"
           mkdir -p "${RUNNER_TEMP}/dist"
-          out=$(morzer release archive bundle -o "${RUNNER_TEMP}/dist/${archive}" --json)
+          if ! out=$(morzer release archive bundle -o "${RUNNER_TEMP}/dist/${archive}" --json); then
+            printf '%s\n' "${out}" >&2
+            exit 1
+          fi
           digest=$(jq -r '.data.digest' <<<"${out}")
           echo "archive=${archive}" >>"${GITHUB_OUTPUT}"
           {

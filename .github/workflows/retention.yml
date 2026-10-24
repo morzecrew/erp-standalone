@@ -21,7 +21,7 @@ jobs:
         with:
           account: ${{ github.repository_owner }}
           token: ${{ secrets.GH_PAT }}
-          image-names: ${{ github.event.repository.name }}
+          image-names: erp-standalone
           image-tags: "*-dev.* !main !stable"
           tag-selection: tagged
           keep-n-most-recent: 5
@@ -32,6 +32,6 @@ jobs:
         with:
           account: ${{ github.repository_owner }}
           token: ${{ secrets.GH_PAT }}
-          image-names: ${{ github.event.repository.name }}
+          image-names: erp-standalone
           tag-selection: untagged
           cut-off: 1d

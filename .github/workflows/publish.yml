@@ -29,8 +29,8 @@ on:
 permissions: {}
 
 env:
-  ARTIFACT_TYPE: application/vnd.morzecrew.morzer.release.v1
-  LAYER_TYPE: application/vnd.morzecrew.morzer.release.layer.v1.tar+zstd
+  ARTIFACT_TYPE: application/vnd.morzer.release.bundle.v1
+  LAYER_TYPE: application/vnd.morzer.release.bundle.v1.tar+zstd
 
 jobs:
   publish:

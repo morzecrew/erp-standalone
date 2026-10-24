@@ -20,18 +20,20 @@ x-backend-environment: &backend-environment
   POSTGRES__HOST: postgres
   POSTGRES__PORT: 5432
   POSTGRES__USER: postgres
-  POSTGRES__DB: erp
+  # erp-backend's settings ignore an unknown name, and envfile-exec reads a
+  # `*_FILE` only for the names its image lists, so each name here is theirs.
+  POSTGRES__DATABASE: erp
   POSTGRES__PASSWORD_FILE: /run/secrets/postgres_password
-  VALKEY__HOST: valkey
-  VALKEY__PORT: 6379
-  VALKEY__PASSWORD_FILE: /run/secrets/valkey_password
-  S3__ENDPOINT_URL: http://rustfs:9000
-  S3__ACCESS_KEY: erp
-  S3__SECRET_KEY_FILE: /run/secrets/s3_secret_key
-  S3__BUCKET: erp
-  AUTH__ACCESS_SECRET_KEY_FILE: /run/secrets/access_secret_key
-  AUTH__REFRESH_PEPPER_FILE: /run/secrets/refresh_pepper
-  AUTH__API_KEY_PEPPER_FILE: /run/secrets/api_key_pepper
+  REDIS__HOST: valkey
+  REDIS__PORT: 6379
+  REDIS__PASSWORD_FILE: /run/secrets/valkey_password
+  S3__HOST: rustfs
+  S3__PORT: 9000
+  S3__USER: erp
+  S3__PASSWORD_FILE: /run/secrets/s3_secret_key
+  AUTH__ACCESS_SECRET_KEY_B64_FILE: /run/secrets/access_secret_key
+  AUTH__REFRESH_PEPPER_B64_FILE: /run/secrets/refresh_pepper
+  AUTH__API_KEY_PEPPER_B64_FILE: /run/secrets/api_key_pepper
   # One origin: the edge serves the API and the frontend together, so there is
   # no cross-origin caller to allow and no cookie domain to widen.
   AUTH__COOKIE_DOMAIN: ""
@@ -133,7 +135,7 @@ services:
     volumes:
       - rustfs-data:/data
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:9000/health"]
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:9000/health/ready"]
       interval: 10s
       timeout: 5s
       retries: 5
