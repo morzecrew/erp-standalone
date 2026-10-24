@@ -1,0 +1,89 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The bundle, and the edge proven on stand-ins
+    intent: >-
+      Write `bundle/`: `manifest.yaml`, `secrets.schema.yaml`, `compose/compose.yaml`,
+      `edge/erp.caddy`, `hooks/smoke-test` (executable) and `RELEASE.md`, to D-1 to
+      D-14 and D-23 to D-25, with morzer 0.6.0's documentation as the authority (`pages/docs/reference/manifest.md`,
+      `variables.md`, `parameters.md`, the `bundle-web` example). Pin the infrastructure
+      images by digest, resolved with `docker buildx imagetools inspect`; give the
+      three component images their `main` tag and an all-zero digest. Settle D-23
+      from Docker's and Compose's release notes. Then write `tests/compose/stub.yaml`,
+      a Compose override that replaces every service built from the backend or frontend
+      image, `bootstrap` and `flyway` aside, with a stand-in from the pinned caddy
+      image that answers every request with the body `backend` or `frontend` and passes
+      its own health check, as `.torve/gates/edge-smoke.sh` states. The `bundle-verify`,
+      `compose-config`, `edge-smoke` and `shellcheck` gates arm on these files. Settles
+      D-1 to D-14 and D-23 to D-25.
+    scope: [bundle/**, tests/compose/**]
+    acceptance:
+      - >-
+        test -f bundle/manifest.yaml -a -f bundle/secrets.schema.yaml -a -f bundle/compose/compose.yaml
+        -a -f bundle/edge/erp.caddy -a -x bundle/hooks/smoke-test -a -f tests/compose/stub.yaml
+      - bash .torve/gates/bundle-verify.sh
+      - bash .torve/gates/compose-config.sh
+      - shellcheck -S warning bundle/hooks/smoke-test
+    tier_variant: strong
+    character: structural
+  - phase: 2
+    title: Pinning components by digest
+    intent: >-
+      Write `scripts/resolve.sh`, which prints an image tag's digest with `docker
+      buildx imagetools inspect` and, for the migrations image, its `tech.morze.erp.schema`
+      label, and `scripts/pin.sh`, which writes the backend, migrations and frontend
+      pins as `repo:tag@sha256:` and `compatibility.database_schema_produces`, `database_schema_min`
+      and `database_schema_max` into `bundle/manifest.yaml` with `yq`, changing nothing
+      else. `pin.sh --release` reads `components.yaml` (the backend's and frontend's
+      `X.Y.Z`, `rollback_safe`, notes) and refuses a `main` or `sha-*` tag; without
+      it, `main`. Write `components.yaml` with placeholder versions the first release
+      replaces. `tests/pin/run.sh` drives both scripts with `resolve.sh` replaced
+      by a fixture, with no network: pinning twice changes nothing, release mode refuses
+      `main` and `sha-*`, and the label lands in all three schema fields. Settles
+      D-15.
+    scope: [scripts/**, /components.yaml, tests/pin/**]
+    acceptance:
+      - bash tests/pin/run.sh
+      - >-
+        shellcheck -S warning scripts/resolve.sh scripts/pin.sh tests/pin/run.sh
+    depends_on:
+      - 1
+    character: routine
+  - phase: 3
+    title: Building, signing and publishing the bundle
+    intent: >-
+      Write `.github/workflows/main.yml`, `release.yml`, `pr.yml` and `retention.yml`
+      and `renovate.json` to D-16 to D-21. Install morzer 0.6.0 from its release,
+      verified by its signature and checksum, and `minisign`, `zstd`, `oras`, `sops`
+      and `age`, each pinned. Every job declares the least `permissions` it needs;
+      every third-party action is pinned by commit. A key is written to a `0600` file
+      under `$RUNNER_TEMP` and never echoed. The smoke job prints `morzer status`
+      and `docker compose logs` on failure. The step summary lists the version, each
+      component's tag and digest, and the bundle's digest. Settles D-16 to D-21.
+    scope: [.github/workflows/**, /renovate.json]
+    acceptance:
+      - actionlint
+      - zizmor --offline .github/workflows
+    depends_on:
+      - 2
+    tier_variant: strong
+    character: structural
+  - phase: 4
+    title: The README and the changelog
+    intent: >-
+      Write `README.md` to D-22: what the bundle is, its two channels, installing
+      a dev VM that follows `:main` unattended and a customer VM on `:stable`, the
+      operator secrets and how each pair is set from one value (Q-1), the ghcr login
+      for root's Docker and the update timer, updating, rolling back, backing up,
+      and restoring Postgres and Valkey together, changing the database password,
+      and the free plan's package limits. Start `CHANGELOG.md` in Keep a Changelog
+      form with an `Unreleased` section for the first bundle. Settles D-22.
+    scope: [/README.md, /CHANGELOG.md]
+    acceptance:
+      - grep -qi 'restore' README.md
+      - grep -q ':stable' README.md
+      - grep -q '## \[Unreleased\]' CHANGELOG.md
+    depends_on:
+      - 1
+      - 3
+    character: routine
