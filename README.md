@@ -98,7 +98,11 @@ sudo morzer init --mode dev --product erp \
 # 3. Set the operator secrets (see below), then start it.
 sudo morzer apply
 
-# 4. Follow the channel unattended.
+# 4. Pull the image backups read volumes through: doctor's backup.volume-helper
+#    warning prints the exact `docker pull`.
+sudo morzer doctor
+
+# 5. Follow the channel unattended.
 sudo morzer config set \
   update.check=true \
   update.channel=oci://ghcr.io/morzecrew/erp-standalone:main \
@@ -147,6 +151,9 @@ sudo morzer init --product erp \
 
 # the operator secrets, then:
 sudo morzer apply
+
+# then the `docker pull` that doctor's backup.volume-helper warning prints:
+sudo morzer doctor
 
 sudo morzer config set \
   update.check=true \
