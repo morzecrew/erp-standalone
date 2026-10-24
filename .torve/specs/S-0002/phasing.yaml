@@ -40,9 +40,10 @@ phasing:
         yq -e '.operations.migrate[2].kind == "hook" and .operations.migrate[2].command[0]
         == "hooks/schema-version" and .compatibility.rollback_safe == true' bundle/manifest.yaml
       - >-
-        yq -e '.services.pgbouncer.environment | .PGBOUNCER_CONF__server_login_retry
-        == 1 and .PGBOUNCER_CONF__dns_max_ttl == 1 and .PGBOUNCER_CONF__dns_nxdomain_ttl
-        == 1' bundle/compose/compose.yaml
+        yq -e '.services.pgbouncer.environment.PGBOUNCER_CONF__server_login_retry
+        == 1 and .services.pgbouncer.environment.PGBOUNCER_CONF__dns_max_ttl == 1
+        and .services.pgbouncer.environment.PGBOUNCER_CONF__dns_nxdomain_ttl == 1'
+        bundle/compose/compose.yaml
       - bash .torve/gates/bundle-verify.sh
       - bash .torve/gates/compose-config.sh
       - bash tests/pin/run.sh
