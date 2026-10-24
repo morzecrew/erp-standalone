@@ -5,12 +5,21 @@
 #   smoke.sh install <archive> <pubkey>...  fresh `sudo morzer init` and `apply`
 #   smoke.sh update <archive>               `sudo morzer update` to the archive
 #   smoke.sh probe                          the edge's loopback health port
+#   smoke.sh backup-restore                 back up, write over it, restore, check
+#   smoke.sh rollback <published> <new>     `sudo morzer rollback` from <new> to <published>
 #   smoke.sh diagnose                       `morzer status` and the Compose logs
 #   smoke.sh free-disk                      room for the release's disk requirement
 #
 # `install` trusts every key it is given and refuses an unsigned release. The
 # operator's secrets get throwaway values, each pair set from one value as the
 # operator would; nothing here prints one.
+#
+# `backup-restore` writes the marker `before` into Postgres and Valkey, backs
+# up, writes `after`, restores, and fails unless both read `before` again.
+# `rollback` passes when the rollback succeeds, or when morzer refuses it
+# (exit 9) and either the new archive declares `rollback_safe: false` or the
+# two archives produce different database schemas.
+# The markers are fixed words; no secret is ever read out here.
 set -euo pipefail
 
 health_port=8081
@@ -61,7 +70,100 @@ install_release() {
 
 	# --verbose: morzer prints a one-shot's output, a migration's error, only then.
 	sudo morzer --verbose apply
-	sudo docker pull --quiet "${volume_helper}"
+	sudo docker image inspect "${volume_helper}" >/dev/null 2>&1 \
+		|| sudo docker pull --quiet "${volume_helper}"
+}
+
+# The running container of one of the erp project's services, by the labels
+# Compose puts on it. A restore recreates it, so each call looks it up again.
+service_container() {
+	local container
+	container=$(sudo docker ps --quiet \
+		--filter label=com.docker.compose.project=erp \
+		--filter "label=com.docker.compose.service=$1" | sed -n 1p)
+	[ -n "${container}" ] || die "no running $1 container of the erp project"
+	printf '%s\n' "${container}"
+}
+
+psql_erp() {
+	sudo docker exec "$(service_container postgres)" \
+		psql -U postgres -d erp -v ON_ERROR_STOP=1 -tAqc "$1"
+}
+
+# The password stays inside the container: valkey-cli reads it from the
+# environment, never from an argument or this script's output.
+valkey() {
+	# shellcheck disable=SC2016 # expanded by the container's sh
+	sudo docker exec "$(service_container valkey)" sh -c \
+		'VALKEYCLI_AUTH="$(cat /run/secrets/valkey_password)" exec valkey-cli --no-auth-warning "$@"' \
+		valkey "$@"
+}
+
+write_marker() {
+	psql_erp "create table if not exists smoke_marker (value text not null);
+		delete from smoke_marker; insert into smoke_marker values ('$1')" >/dev/null
+	[ "$(valkey set smoke:marker "$1")" = OK ] || die "valkey did not store the marker"
+}
+
+check_marker() {
+	local database cache
+	database=$(psql_erp "select value from smoke_marker")
+	cache=$(valkey get smoke:marker)
+	[ "${database}" = "$1" ] || die "smoke_marker reads '${database}', not '$1'"
+	[ "${cache}" = "$1" ] || die "smoke:marker reads '${cache}', not '$1'"
+	echo "smoke.sh: both markers read $1"
+}
+
+backup_restore() {
+	local out id installation
+	write_marker before
+
+	# Under --json morzer's error is only in the envelope on stdout.
+	if ! out=$(sudo morzer backup --reason smoke --json); then
+		printf '%s\n' "${out}" >&2
+		exit 1
+	fi
+	id=$(jq -r '.data.id // .data.backup.id // .data.backup_id // empty' <<<"${out}")
+	[ -n "${id}" ] || die "morzer backup reported no backup id"
+	echo "smoke.sh: backup ${id}"
+
+	write_marker after
+	check_marker after
+
+	installation=$(sudo morzer status --json | jq -r '.data.installation_id // .data.installation.id // empty')
+	[ -n "${installation}" ] || die "morzer status reported no installation id"
+	sudo morzer --verbose restore --backup "${id}" --force --confirm "${installation}"
+	check_marker before
+}
+
+# A field an archive's manifest declares, by its key: `rollback_safe`,
+# `database_schema_produces`.
+manifest_field() {
+	local manifest
+	manifest=$(tar -I zstd -tf "$1" | grep -E '(^|/)manifest\.yaml$' | awk '{ print length, $0 }' \
+		| sort -n | sed -n '1s/^[0-9]* //p')
+	[ -n "${manifest}" ] || die "$1 holds no manifest.yaml"
+	tar -I zstd -xOf "$1" "${manifest}" \
+		| sed -n "s/^[[:space:]]*$2:[[:space:]]*\([^[:space:]#]*\).*/\1/p" | sed -n 1p
+}
+
+rollback() {
+	local published=$1 new=$2 status=0 from to
+	sudo morzer --verbose rollback || status=$?
+	[ "${status}" -ne 0 ] || { echo "smoke.sh: rolled back"; return; }
+	[ "${status}" -eq 9 ] || die "morzer rollback exited ${status}"
+	# A release takes rollback_safe from components.yaml, and false refuses
+	# any rollback from it, on one schema or not.
+	if [ "$(manifest_field "${new}" rollback_safe)" = false ]; then
+		echo "smoke.sh: rollback refused, as the new release declares rollback_safe: false"
+		return
+	fi
+	from=$(manifest_field "${new}" database_schema_produces)
+	to=$(manifest_field "${published}" database_schema_produces)
+	[ -n "${from}" ] && [ -n "${to}" ] || die "an archive declares no database_schema_produces"
+	[ "${from}" != "${to}" ] \
+		|| die "morzer rollback refused (exit 9) between two releases on schema ${from}"
+	echo "smoke.sh: rollback refused across the schema change ${from} -> ${to}, as it must be"
 }
 
 probe() {
@@ -101,7 +203,12 @@ update)
 	sudo morzer --verbose update "$2"
 	;;
 probe) probe ;;
+backup-restore) backup_restore ;;
+rollback)
+	[ $# -eq 3 ] || die "usage: smoke.sh rollback <published archive> <new archive>"
+	rollback "$2" "$3"
+	;;
 free-disk) free_disk ;;
 diagnose) diagnose ;;
-*) die "usage: smoke.sh install|update|probe|diagnose|free-disk" ;;
+*) die "usage: smoke.sh install|update|probe|backup-restore|rollback|diagnose|free-disk" ;;
 esac

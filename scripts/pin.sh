@@ -3,8 +3,10 @@
 # Pin the three component images in `bundle/manifest.yaml` to the digests
 # their tags point at right now, and record the migrations image's
 # `tech.morze.erp.schema` label in the three `compatibility.database_schema_*`
-# fields. No other value in the manifest changes, and a second run leaves the
-# file byte-identical.
+# fields. `--release` also writes `compatibility.rollback_safe`, true only when
+# both components.yaml entries declare it; plain pinning leaves it as
+# committed. No other value in the manifest changes, and a second run leaves
+# the file byte-identical.
 #
 #   scripts/pin.sh             pin `main` -- the dev channel
 #   scripts/pin.sh --release   pin the versions `components.yaml` names
@@ -95,6 +97,16 @@ version_of() {
 	printf '%s\n' "$version"
 }
 
+# Whether a rollback is safe, as components.yaml declares it for one
+# component. Only a YAML boolean is a release input: a quoted `"true"` is a
+# string, which is a wrong value, not a truthy one.
+rollback_safe_of() {
+	local name=$1
+	yq -e ".${name}.rollback_safe | tag == \"!!bool\"" "$components" >/dev/null 2>&1 \
+		|| die "components.yaml: ${name}.rollback_safe is not true or false"
+	yq -r ".${name}.rollback_safe" "$components"
+}
+
 # Every field D-15 gives a component entry. A field nobody filled in is a
 # release input that is missing, not a default.
 require_entry() {
@@ -114,6 +126,15 @@ if $release; then
 	done
 	backend_tag=$(version_of backend)
 	frontend_tag=$(version_of frontend)
+	# D-4: a rollback across the pair is safe only when both component
+	# releases are; the conjunction is what the bundle declares.
+	backend_safe=$(rollback_safe_of backend)
+	frontend_safe=$(rollback_safe_of frontend)
+	if [ "$backend_safe" = true ] && [ "$frontend_safe" = true ]; then
+		rollback_safe=true
+	else
+		rollback_safe=false
+	fi
 fi
 # D-15: the migrations image ships with the backend's commit or version.
 migrations_tag=$backend_tag
@@ -138,22 +159,30 @@ frontend_ref="$(repo_of frontend):${frontend_tag}"
 resolve_ref "$frontend_ref"
 frontend_pin="${frontend_ref}@${RESOLVED_DIGEST}"
 
-# D-15: only the three component pins and the three schema fields are written.
-# `yq` re-emits the document, so the manifest keeps its keys, values and
-# comments and loses only the blank lines between its sections.
+# D-15: only the three component pins and the three schema fields are written;
+# D-4 adds `compatibility.rollback_safe` in release mode alone, so a plain pin
+# leaves the committed value alone. `yq` re-emits the document, so the manifest
+# keeps its keys, values and comments and loses only the blank lines between
+# its sections.
 export PIN_BACKEND=$backend_pin
 export PIN_MIGRATIONS=$migrations_pin
 export PIN_FRONTEND=$frontend_pin
 export PIN_SCHEMA=$schema
-yq -i '
+update='
 	.images.backend = strenv(PIN_BACKEND) |
 	.images.migrations = strenv(PIN_MIGRATIONS) |
 	.images.frontend = strenv(PIN_FRONTEND) |
 	.compatibility.database_schema_produces = (strenv(PIN_SCHEMA) | tonumber) |
 	.compatibility.database_schema_min = (strenv(PIN_SCHEMA) | tonumber) |
-	.compatibility.database_schema_max = (strenv(PIN_SCHEMA) | tonumber)
-' "$manifest"
+	.compatibility.database_schema_max = (strenv(PIN_SCHEMA) | tonumber)'
+if $release; then
+	update="${update} | .compatibility.rollback_safe = ${rollback_safe}"
+fi
+yq -i "$update" "$manifest"
 
 printf 'pin.sh: backend    %s\n' "$backend_pin"
 printf 'pin.sh: migrations %s (schema %s)\n' "$migrations_pin" "$schema"
 printf 'pin.sh: frontend   %s\n' "$frontend_pin"
+if $release; then
+	printf 'pin.sh: rollback_safe %s\n' "$rollback_safe"
+fi

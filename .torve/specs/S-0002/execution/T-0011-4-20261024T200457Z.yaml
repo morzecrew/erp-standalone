@@ -1,0 +1,314 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0011
+phase: 2
+attempt: 4
+base: 76b1df14384b5cdcfe775277533b4fbecb7fade9
+commit: e332b53198e8bc25be9cb5bbbb4b23cfaac731dd
+at: '2026-10-24T20:04:57Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+entries:
+  - decision: D-9
+    grade: ASSUMED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-24T19:12:47Z'
+    claim: >-
+      The three PgBouncer settings are in pgbouncer's environment exactly as D-9 writes
+      them, but the acceptance command minted from D-9 cannot pass, and cannot be
+      made to pass, against a compose file that also passes the compose-config acceptance
+      beside it: yq binds the pipe to the first comparison only, so the later operands
+      of the conjunction are taken from the document root, and the command exits 0
+      only when PGBOUNCER_CONF__dns_max_ttl and PGBOUNCER_CONF__dns_nxdomain_ttl are
+      top-level keys of bundle/compose/compose.yaml, which docker compose config refuses
+      as additional properties. The file is right and the acceptance line is wrong,
+      so there is no branch here to take: the two commands cannot both be satisfied.
+    evidence: >-
+      `yq -e '.services.pgbouncer.environment | .PGBOUNCER_CONF__server_login_retry
+      == 1 and .PGBOUNCER_CONF__dns_max_ttl == 1 and .PGBOUNCER_CONF__dns_nxdomain_ttl
+      == 1' bundle/compose/compose.yaml` → exit 1: Error: no matches found; the same
+      expression with the conjunction in parentheses exits 0
+    action: halted
+    proposal: >-
+      Amend the acceptance line to bind the conjunction to the environment map: yq
+      -e '.services.pgbouncer.environment | (.PGBOUNCER_CONF__server_login_retry ==
+      1 and .PGBOUNCER_CONF__dns_max_ttl == 1 and .PGBOUNCER_CONF__dns_nxdomain_ttl
+      == 1)' bundle/compose/compose.yaml — it exits 0 against the committed file,
+      and D-9's own text needs no change.
+    notes: >-
+      Everything else the phase asks for is in the tree and green: the hook, the manifest
+      step and its comment, the rewritten release notes, the pin script and its extended
+      tests, and compose-config. The tree is left in place for the amendment.
+  - decision: S-0001/D-12
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-24T19:12:54Z'
+    claim: >-
+      operations.migrate now runs flyway, bootstrap and a third step, the hook hooks/schema-version;
+      D-12 enumerates the two runtime-service steps and no hook. The third step is
+      the one this task's own D-3 adds, so the standing row's text is stale rather
+      than disobeyed, and it needs the amendment the task already carries.
+    evidence: >-
+      bundle/manifest.yaml:91-100 — all three steps, the schema-version hook last;
+      D-12's two steps are bundle/manifest.yaml:92-97
+    action: departed
+    proposal: >-
+      Amend D-12 to: operations.migrate is flyway (15 m), bootstrap (5 m) and the
+      hook hooks/schema-version (1 m), which reads the schema the migrations just
+      applied so morzer can record it.
+  - decision: S-0001/D-13
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-24T19:12:54Z'
+    claim: >-
+      The committed manifest declares compatibility.rollback_safe true, as this task's
+      D-4 requires; D-13's last sentence says the committed manifest says false. The
+      field moved with the row that governs it, so D-13's sentence is stale rather
+      than disobeyed.
+    evidence: >-
+      bundle/manifest.yaml:141 — rollback_safe: true, where D-13 states false
+    action: departed
+    proposal: >-
+      Amend D-13's last sentence to: the committed manifest says rollback_safe: true,
+      and scripts/pin.sh --release writes it from components.yaml's backend and frontend
+      together, true only when both are.
+  - decision: S-0001/D-6
+    grade: LOCKED
+    at: '2026-10-24T19:13:00Z'
+    claim: >-
+      The bundle/compose/compose.yaml change is confined to pgbouncer's environment,
+      adding the three PGBOUNCER_CONF__ settings; every valkey setting D-6 pins still
+      holds exactly as written, so the locked row is untouched.
+    evidence: >-
+      bundle/compose/compose.yaml:110-131 — VALKEY_PERSISTENCE aof, VALKEY_MAXMEMORY_POLICY
+      noeviction, limits.memory 1g and the authenticating health check, all unchanged
+    action: decided
+  - decision: D-9
+    grade: ASSUMED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-24T19:35:35Z'
+    attempt: 2
+    claim: >-
+      The three PgBouncer settings are in pgbouncer's environment exactly as D-9 writes
+      them, and the file passes the compose-config acceptance beside them, but the
+      acceptance line minted from D-9 cannot pass against that file, in any shape,
+      at the same time: yq binds the pipe to the first comparison only, so the conjunction's
+      later operands are read from the document root, and the command exits 0 only
+      when PGBOUNCER_CONF__dns_max_ttl and PGBOUNCER_CONF__dns_nxdomain_ttl are top-level
+      keys of bundle/compose/compose.yaml, which docker compose config refuses as
+      additional properties. The contract is unchanged from attempt 1 and its halt
+      stands, and nothing was flipped: the file is right and the acceptance line is
+      wrong, so there is no branch to take.
+    evidence: >-
+      `yq -e '.services.pgbouncer.environment | .PGBOUNCER_CONF__server_login_retry
+      == 1 and .PGBOUNCER_CONF__dns_max_ttl == 1 and .PGBOUNCER_CONF__dns_nxdomain_ttl
+      == 1' bundle/compose/compose.yaml` -> exit 1: Error: no matches found; the same
+      expression with the conjunction parenthesised inside the pipe exits 0, while
+      the only shape the unparenthesised one accepts (the two dns keys also at the
+      document root) fails `docker compose config -q` with "additional properties
+      ... not allowed"
+    action: halted
+    proposal: >-
+      Amend the acceptance line to bind the conjunction to the environment map: yq
+      -e '.services.pgbouncer.environment | (.PGBOUNCER_CONF__server_login_retry ==
+      1 and .PGBOUNCER_CONF__dns_max_ttl == 1 and .PGBOUNCER_CONF__dns_nxdomain_ttl
+      == 1)' bundle/compose/compose.yaml — it exits 0 against the committed file,
+      and D-9's own text needs no change.
+    notes: >-
+      Everything else the phase asks for is in the tree and green: the hook, the manifest
+      step and its comment, the rewritten release notes, the pin script and its extended
+      tests, and compose-config. The tree is left in place for the amendment.
+  - decision: D-9
+    grade: ASSUMED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-24T19:44:53Z'
+    attempt: 3
+    claim: >-
+      The three PgBouncer settings are in pgbouncer environment exactly as D-9 writes
+      them, and the file passes the compose-config acceptance beside them, but the
+      acceptance line minted from D-9 cannot pass against that file, in any shape,
+      at the same time: yq evaluates the conjunction against the document root rather
+      than the piped environment map, so the command exits 0 only when PGBOUNCER_CONF__dns_max_ttl
+      and PGBOUNCER_CONF__dns_nxdomain_ttl are also top-level keys of bundle/compose/compose.yaml,
+      which docker compose config refuses as additional properties. The contract is
+      unchanged from attempts 1 and 2 and their halt stands; the file is right and
+      the acceptance line is wrong, so there is no branch here to take.
+    evidence: >-
+      bundle/compose/compose.yaml:95-97 — the three settings as D-9 writes them; `yq
+      -e ".services.pgbouncer.environment | .PGBOUNCER_CONF__server_login_retry ==
+      1 and .PGBOUNCER_CONF__dns_max_ttl == 1 and .PGBOUNCER_CONF__dns_nxdomain_ttl
+      == 1" bundle/compose/compose.yaml` -> exit 1, "Error: no matches found", while
+      the same conjunction parenthesised inside the pipe exits 0; the only shape the
+      unparenthesised command accepts, the two dns keys also as top-level keys of
+      that file, fails `docker compose -f bundle/compose/compose.yaml config -q` with
+      "additional properties ... not allowed".
+    action: halted
+    proposal: >-
+      Amend the acceptance line to bind the conjunction to the environment map: yq
+      -e ".services.pgbouncer.environment | (.PGBOUNCER_CONF__server_login_retry ==
+      1 and .PGBOUNCER_CONF__dns_max_ttl == 1 and .PGBOUNCER_CONF__dns_nxdomain_ttl
+      == 1)" bundle/compose/compose.yaml — it exits 0 against the committed file,
+      and the text of D-9 needs no change.
+    notes: >-
+      Everything else the phase asks for is in the tree and green: the schema-version
+      hook, the third migrate step and its comment, rollback_safe true with the D-4
+      comment, the rewritten release notes, the extended pin script and tests/pin/run.sh
+      passing; compose-config, edge-smoke, bundle-verify and shellcheck are green.
+      The tree is left in place for the amendment.
+  - decision: D-9
+    grade: ASSUMED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-24T19:47:30Z'
+    attempt: 2
+    claim: >-
+      The three PgBouncer settings are in pgbouncer's environment exactly as D-9 writes
+      them, and the file passes the compose-config acceptance beside them, but the
+      acceptance line minted from D-9 cannot pass against that file, in any shape,
+      at the same time: yq binds the pipe to the first comparison only, so the conjunction's
+      later operands are read from the document root, and the command exits 0 only
+      when PGBOUNCER_CONF__dns_max_ttl and PGBOUNCER_CONF__dns_nxdomain_ttl are top-level
+      keys of bundle/compose/compose.yaml, which docker compose config refuses as
+      additional properties. The contract is unchanged from attempt 1 and its halt
+      stands, and nothing was flipped: the file is right and the acceptance line is
+      wrong, so there is no branch to take.
+    evidence: >-
+      `yq -e '.services.pgbouncer.environment | .PGBOUNCER_CONF__server_login_retry
+      == 1 and .PGBOUNCER_CONF__dns_max_ttl == 1 and .PGBOUNCER_CONF__dns_nxdomain_ttl
+      == 1' bundle/compose/compose.yaml` -> exit 1: Error: no matches found; the same
+      expression with the conjunction parenthesised inside the pipe exits 0, while
+      the only shape the unparenthesised one accepts (the two dns keys also at the
+      document root) fails `docker compose config -q` with "additional properties
+      ... not allowed"
+    action: halted
+    proposal: >-
+      Amend the acceptance line to bind the conjunction to the environment map: yq
+      -e '.services.pgbouncer.environment | (.PGBOUNCER_CONF__server_login_retry ==
+      1 and .PGBOUNCER_CONF__dns_max_ttl == 1 and .PGBOUNCER_CONF__dns_nxdomain_ttl
+      == 1)' bundle/compose/compose.yaml — it exits 0 against the committed file,
+      and D-9's own text needs no change.
+    notes: >-
+      Everything else the phase asks for is in the tree and green: the hook, the manifest
+      step and its comment, the rewritten release notes, the pin script and its extended
+      tests, and compose-config. The tree is left in place for the amendment.
+  - decision: D-9
+    grade: ASSUMED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-24T19:48:09Z'
+    attempt: 3
+    claim: >-
+      The three PgBouncer settings are in pgbouncer environment exactly as D-9 writes
+      them, and the file passes the compose-config acceptance beside them, but the
+      acceptance line minted from D-9 cannot pass against that file, in any shape,
+      at the same time: yq evaluates the conjunction against the document root rather
+      than the piped environment map, so the command exits 0 only when PGBOUNCER_CONF__dns_max_ttl
+      and PGBOUNCER_CONF__dns_nxdomain_ttl are also top-level keys of bundle/compose/compose.yaml,
+      which docker compose config refuses as additional properties. The contract is
+      unchanged from attempts 1 and 2 and their halt stands; the file is right and
+      the acceptance line is wrong, so there is no branch here to take.
+    evidence: >-
+      bundle/compose/compose.yaml:95-97 — the three settings as D-9 writes them; `yq
+      -e ".services.pgbouncer.environment | .PGBOUNCER_CONF__server_login_retry ==
+      1 and .PGBOUNCER_CONF__dns_max_ttl == 1 and .PGBOUNCER_CONF__dns_nxdomain_ttl
+      == 1" bundle/compose/compose.yaml` -> exit 1, "Error: no matches found", while
+      the same conjunction parenthesised inside the pipe exits 0; the only shape the
+      unparenthesised command accepts, the two dns keys also as top-level keys of
+      that file, fails `docker compose -f bundle/compose/compose.yaml config -q` with
+      "additional properties ... not allowed".
+    action: halted
+    proposal: >-
+      Amend the acceptance line to bind the conjunction to the environment map: yq
+      -e ".services.pgbouncer.environment | (.PGBOUNCER_CONF__server_login_retry ==
+      1 and .PGBOUNCER_CONF__dns_max_ttl == 1 and .PGBOUNCER_CONF__dns_nxdomain_ttl
+      == 1)" bundle/compose/compose.yaml — it exits 0 against the committed file,
+      and the text of D-9 needs no change.
+    notes: >-
+      Everything else the phase asks for is in the tree and green: the schema-version
+      hook, the third migrate step and its comment, rollback_safe true with the D-4
+      comment, the rewritten release notes, the extended pin script and tests/pin/run.sh
+      passing; compose-config, edge-smoke, bundle-verify and shellcheck are green.
+      The tree is left in place for the amendment.
+  - decision: D-9
+    grade: ASSUMED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-24T19:48:09Z'
+    attempt: 2
+    claim: >-
+      The three PgBouncer settings are in pgbouncer's environment exactly as D-9 writes
+      them, and the file passes the compose-config acceptance beside them, but the
+      acceptance line minted from D-9 cannot pass against that file, in any shape,
+      at the same time: yq binds the pipe to the first comparison only, so the conjunction's
+      later operands are read from the document root, and the command exits 0 only
+      when PGBOUNCER_CONF__dns_max_ttl and PGBOUNCER_CONF__dns_nxdomain_ttl are top-level
+      keys of bundle/compose/compose.yaml, which docker compose config refuses as
+      additional properties. The contract is unchanged from attempt 1 and its halt
+      stands, and nothing was flipped: the file is right and the acceptance line is
+      wrong, so there is no branch to take.
+    evidence: >-
+      `yq -e '.services.pgbouncer.environment | .PGBOUNCER_CONF__server_login_retry
+      == 1 and .PGBOUNCER_CONF__dns_max_ttl == 1 and .PGBOUNCER_CONF__dns_nxdomain_ttl
+      == 1' bundle/compose/compose.yaml` -> exit 1: Error: no matches found; the same
+      expression with the conjunction parenthesised inside the pipe exits 0, while
+      the only shape the unparenthesised one accepts (the two dns keys also at the
+      document root) fails `docker compose config -q` with "additional properties
+      ... not allowed"
+    action: halted
+    proposal: >-
+      Amend the acceptance line to bind the conjunction to the environment map: yq
+      -e '.services.pgbouncer.environment | (.PGBOUNCER_CONF__server_login_retry ==
+      1 and .PGBOUNCER_CONF__dns_max_ttl == 1 and .PGBOUNCER_CONF__dns_nxdomain_ttl
+      == 1)' bundle/compose/compose.yaml — it exits 0 against the committed file,
+      and D-9's own text needs no change.
+    notes: >-
+      Everything else the phase asks for is in the tree and green: the hook, the manifest
+      step and its comment, the rewritten release notes, the pin script and its extended
+      tests, and compose-config. The tree is left in place for the amendment.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-24T20:02:13Z'
+    attempt: 2
+    claim: >-
+      The contract's manifest acceptance command cannot run as the shell-side finishing
+      check reads it. The projection folds the command across two lines; the check
+      reads the contract one line at a time and does not join a folded continuation,
+      so /bin/sh is handed a command ending in an unterminated quote and answers 'Syntax
+      error: Unterminated quoted string'. Run as the one line it was minted as, the
+      same command prints true.
+    evidence: >-
+      .torve/tasks/T-0011/contract.yaml:42-43 — the manifest acceptance command is
+      folded after "hooks/schema-version" and the finishing check takes line 42 alone;
+      the same command on one line prints true
+    action: decided
+    proposal: >-
+      An acceptance command must survive the projection as one line: either the projection
+      must not fold it, or the finishing check must join a folded continuation before
+      running it, so a command naming a path cannot be truncated into a shell syntax
+      error.
+    notes: >-
+      Nothing in the tree is wrong: the wrapped command passes when it is not truncated,
+      and the battery's own @task.acceptance reads the contract with a YAML library.

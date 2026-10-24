@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0012
+phase: 3
+base: e4443d220b7cc6de16db0a7ca8b764bd5b982f61
+commit: d8c81f6722d6edf0674123554b54fa1d6dd0e9fc
+at: '2026-10-24T20:11:08Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-24T20:09:15Z'
+    claim: >-
+      D-5 does not say where morzer 0.6.0's JSON puts the backup id or the installation
+      id. The installation id is read as .data.installation_id, the field the binary's
+      status struct carries; the backup id falls back through .data.id, .data.backup.id
+      and .data.backup_id, and the step dies if none is set.
+    evidence: >-
+      .github/workflows/scripts/smoke.sh:125-133 — the two jq reads; `grep -aoE '.{60}json:"installation_id".{60}'
+      /usr/local/bin/morzer` printed InstallationIDjson:"installation_id" PublicURL
+      ... CurrentRelease
+    action: decided
+    proposal: >-
+      Amend D-5 to name the fields: status --json's .data.installation_id, and backup
+      --json's backup-id field once a rehearsal shows it, so the fallback chain can
+      shrink to one path.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-24T20:09:15Z'
+    claim: >-
+      D-5 does not say how rollback reads an archive's manifest.yaml. It takes the
+      shallowest manifest.yaml in the archive's listing and reads database_schema_produces
+      with sed, not yq, because the rehearsal container in D-7 has no yq.
+    evidence: >-
+      .github/workflows/scripts/smoke.sh:139-145 — schema_produces
+    action: decided
+    proposal: >-
+      Amend D-5 to say the manifest is the archive's top-level manifest.yaml and that
+      smoke.sh needs only tar and zstd to read it.
+  - decision: D-6
+    grade: ASSUMED
+    at: '2026-10-24T20:09:15Z'
+    claim: >-
+      Built as written. The published bundle's key is chosen from inputs.channel and
+      trusted alongside the new bundle's key. A missing tag gives a notice and only
+      the fresh install. A missing key variable for a tag that exists fails the job.
+    evidence: >-
+      .github/workflows/bundle.yml:278-321 — the fetch and install steps
+    action: decided
+    proposal: No amendment needed.
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-10-24T20:09:15Z'
+    claim: >-
+      Built as written. An empty version input stamps scripts/version.sh's output.
+      Only main.yml leaves version empty, and it uses pin none, so version.sh's dirty-bundle
+      refusal cannot trip on a pin made in the job.
+    evidence: >-
+      .github/workflows/bundle.yml:98 — the stamp; .github/workflows/main.yml:115-121
+      is the only empty-version caller
+    action: decided
+    proposal: No amendment needed.

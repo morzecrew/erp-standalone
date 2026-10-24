@@ -47,5 +47,6 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `scripts/` — 4 decision(s)
 - `tests/compose/` — 0 decision(s)
 - `tests/pin/` — 1 decision(s)
+- `tests/version/` — 1 decision(s)
 
 <!-- /torve:managed -->

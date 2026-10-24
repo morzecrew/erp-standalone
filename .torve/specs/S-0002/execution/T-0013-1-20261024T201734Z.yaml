@@ -1,0 +1,105 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0013
+phase: 4
+base: 2892314519018117621be24fd33739a66806e62b
+commit: 6ceb9929e8113aa1b8c451f2a967ab8def59c0f7
+at: '2026-10-24T20:17:34Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+entries:
+  - decision: D-7
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-24T20:15:11Z'
+    claim: >-
+      D-7 lists bash, curl, jq, openssl, sudo, zstd and minisign from Alpine, but
+      docker:dind's busybox tar cannot unpack zstd, and install-tools.sh (tar --zstd)
+      and smoke.sh (tar -I zstd) both need it; rehearse.sh also installs Alpine's
+      GNU tar.
+    evidence: >-
+      scripts/rehearse.sh:133-135 — the apk line adds tar; .github/workflows/scripts/install-tools.sh:54
+      runs tar --zstd and .github/workflows/scripts/smoke.sh:136-141 runs tar -I zstd
+    action: departed
+    proposal: >-
+      D-7's Alpine list reads: bash, curl, jq, openssl, sudo, tar, zstd and minisign.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-24T20:15:11Z'
+    claim: >-
+      D-7 does not say which key the --from bundle is trusted with; smoke.sh install
+      refuses without one. rehearse.sh reads it from REHEARSE_PUBKEY, a public key
+      and no credential, refuses when it is unset, and --help names MINISIGN_DEV_PUBKEY
+      for :main and MINISIGN_RELEASE_PUBKEY for :stable.
+    evidence: >-
+      scripts/rehearse.sh:86-87 — REHEARSE_PUBKEY is required; scripts/rehearse.sh:244
+      passes it to smoke.sh install beside the rehearsal key
+    action: decided
+    proposal: >-
+      D-7 adds: REHEARSE_PUBKEY holds the minisign public key that signed the --from
+      bundle, and the script refuses when it is unset.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-24T20:15:11Z'
+    claim: >-
+      D-7 says each image is given its name in io.containerd.image.name but not which
+      name. rehearse.sh names a pin repo:tag, or repo@digest when it has no tag, fully
+      qualified (docker.io/library/ for Hub images), copies it by digest so the loaded
+      root keeps the pinned digest, and reaches Docker Hub at registry-1.docker.io.
+    evidence: >-
+      scripts/rehearse.sh:186-214 — load_image derives the name and the oras source
+      from the pin
+    action: decided
+    proposal: >-
+      D-7 adds: an image is named as its pin's repo:tag, or repo@digest when untagged,
+      fully qualified, and copied by its digest.
+  - decision: D-7
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-24T20:15:33Z'
+    claim: >-
+      Corrects the citations of this attempt's earlier D-7 tar entry, whose secondary
+      line numbers were wrong; the departure is unchanged: rehearse.sh installs Alpine's
+      GNU tar beside D-7's list because busybox tar cannot unpack zstd.
+    evidence: >-
+      scripts/rehearse.sh:133-135 — the apk line adds tar; .github/workflows/scripts/install-tools.sh:58
+      runs tar --zstd and .github/workflows/scripts/smoke.sh:141-144 run tar -I zstd
+    action: departed
+    proposal: >-
+      D-7's Alpine list reads: bash, curl, jq, openssl, sudo, tar, zstd and minisign.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-24T20:15:33Z'
+    claim: >-
+      Corrects the citations of this attempt's earlier REHEARSE_PUBKEY and image-name
+      entries: the key reaches smoke.sh install at line 233, and load_image spans
+      lines 184-214. The decisions are unchanged.
+    evidence: >-
+      scripts/rehearse.sh:233 — smoke install passes REHEARSE_PUBKEY beside the rehearsal
+      key; scripts/rehearse.sh:184-214 is load_image
+    action: decided
+    proposal: >-
+      As the earlier entries: D-7 names REHEARSE_PUBKEY, and names each image repo:tag,
+      or repo@digest when untagged, fully qualified.

@@ -42,6 +42,31 @@ head of `main`; the first tagged release seals this section under its version.
   `ghcr.io/morzecrew/erp-standalone` behind a rolling `:main` dev channel and
   immutable `X.Y.Z` releases on a rolling `:stable` channel.
 
+### Changed
+
+- Between two releases on one schema, `morzer rollback` returns to the previous
+  release: dev builds declare `rollback_safe: true` (a release declares what
+  `components.yaml` says), and migrate now reports the database's schema, so
+  `rollback`, the update's compatibility check and the unattended gate judge
+  against it instead of warning that it is unknown.
+- An update that fails after its migrations, on a schema that did not move,
+  recovers by itself: the manager returns to the release that was running and
+  exits 11, with nothing asked of the operator. A failure in the migrations, or
+  after the schema moved, still stops for a person (exit 12), and the way back
+  is restoring the pre-update backup.
+- The dev channel's version names the last commit that changed `bundle/`, so
+  `:main` moves only when `bundle/` changes. A merge that ships nothing new no
+  longer publishes a new `*-dev.*` version.
+
+### Fixed
+
+- An update could fail at `bootstrap` right after its pre-update backup and
+  stop for a person: PgBouncer refused clients for up to half a minute after
+  Postgres restarted. It now retries the login, and looks Postgres up again,
+  after one second.
+- A restore's smoke test gave up while the backend was still starting. It now
+  waits up to 90 s for each path.
+
 ### Security
 
 - Every bundle is signed and verified against a trusted key; a machine with

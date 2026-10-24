@@ -102,11 +102,12 @@ sudo morzer apply
 #    warning prints the exact `docker pull`.
 sudo morzer doctor
 
-# 5. Follow the channel unattended.
+# 5. Follow the channel unattended, every fifteen minutes.
 sudo morzer config set \
   update.check=true \
   update.channel=oci://ghcr.io/morzecrew/erp-standalone:main \
   update.auto_apply=true \
+  update.schedule='*:0/15' \
   backup.before_update=false
 ```
 
@@ -118,10 +119,14 @@ sudo morzer config set \
 - `--recovery-recipient` is an offline age public key that can decrypt this
   machine's secret state, so losing the VM does not lose its secrets. Keep it
   somewhere other than the VM.
-- `morzer init` installs the systemd units by default, including
-  `morzer-update.timer`. `update.schedule` holds the `OnCalendar` expression
-  the timer fires on — hourly (`*-*-* *:00:00`) unless you set it, e.g.
-  `sudo morzer config set update.schedule='Sat *-*-* 04:00:00'`.
+- `morzer init` installs the systemd units. The update timer is
+  `erp-update.timer`, which setting a channel installs; it ticks daily at
+  03:30 unless `update.schedule` says otherwise —
+  `sudo morzer config set update.schedule='Sat *-*-* 04:00:00'` fires it on
+  Saturday mornings instead.
+- `update.schedule='*:0/15'` is this VM's cadence rather than the timer's
+  default: the timer fires on the quarter hour, so a merge on `:main` is
+  installed within fifteen minutes of CI publishing it.
 - `update.check` must be on before anything follows a channel: a check or an
   update contacts the registry, and the manager will not do that unasked.
 - `update.auto_apply=true` is what makes the timer install rather than only
@@ -247,8 +252,27 @@ sudo morzer update --to <version> # install a version already in the release sto
 An update verifies the bundle, checks it against the compatibility the
 manifest declares, takes a pre-update backup (unless `backup.before_update`
 is off), stages the release and converges to it: pull, migrate (flyway, then
-bootstrap), start, then the smoke test. A failed update returns to the release
-that was running. The databases are never rolled back by the update itself.
+bootstrap), start, then the smoke test.
+
+**An update that fails after its migrations, on a schema that did not move,
+recovers by itself** — a health check or the smoke test that fails, say. The
+manager returns to the release that was running and exits 11; nothing is asked
+of you, and the unattended timer does the same. That needs `rollback_safe:
+true`, which every dev build declares and a release declares when
+`components.yaml` says so of both components. A failure in the migrations
+themselves (flyway, bootstrap, the schema report), or one after the schema
+moved, cannot return that way, so it stops for a person and exits 12. Repair
+the cause, clear the flag and converge again, or restore the pre-update backup
+the manager names:
+
+```console
+sudo morzer doctor                        # what the failed operation left
+sudo morzer status --clear-intervention=  # the flagged operation; or name its id
+sudo morzer apply
+```
+
+The databases are never rolled back by the update itself; that is what the
+restore is for.
 
 ## Rolling back
 
@@ -262,10 +286,22 @@ can be reversed, whether the current database schema is compatible with the
 previous release, and whether a restore is required. When the answers do not
 permit a safe return it refuses, naming the backup to restore from instead.
 
-Every release of this bundle declares `rollback_safe: false`, because each
-release reads only the schema it produces: **an update that changed the schema
-is rolled back by restoring, not by `morzer rollback`.** `--force` authorises a
-destructive action; it does not override a refusal.
+Every dev build of this bundle declares `rollback_safe: true`, and a release
+declares what `components.yaml` says of both components. Where it is true,
+**between two releases that share a schema `morzer rollback` returns to the
+previous release.** Across a schema change it is a restore, not a rollback: a release
+reads only the schema it produces, so the manager refuses and names the
+pre-update backup. `--force` authorises a destructive action; it does not
+override a refusal.
+
+## After a reboot
+
+The systemd unit `erp.service` starts the installation by running
+`apply --startup`, which renders the secrets again to `/run/erp/secrets` before
+the services come up. The rendered files live under `/run`, which a reboot
+empties, while the encrypted state that produces them is on disk — so a machine
+that comes back from a power cut converges without a person, and no secret has
+to be re-entered.
 
 ## Backing up
 
@@ -299,8 +335,8 @@ sudo morzer restore --backup <backup-id> --force --confirm <installation-id>
 `morzer restore` verifies the backup, stops the writers, restores the volumes
 and then the database and files, re-applies the release and runs the smoke
 test. It is destructive and needs both `--force` and the installation id typed
-as `--confirm`; `morzer ls` prints the id. Anything written since the backup
-is gone, not left beside the restored data.
+as `--confirm`; `morzer status` prints the installation id. Anything written
+since the backup is gone, not left beside the restored data.
 
 ## Changing the database password
 
@@ -334,6 +370,30 @@ running containers still hold the old file, so do this in one sitting; if a
 pair is left mismatched, the backend's start fails loudly and re-running is
 safe.
 
+## Rehearsing a bundle
+
+`scripts/rehearse.sh` rehearses on a workstation what CI's smoke jobs prove on
+the runner — install the published bundle, back it up and restore it, update to
+the working tree's `bundle/`, and roll back — before a pull request is opened.
+
+```console
+scripts/rehearse.sh                     # from :main
+scripts/rehearse.sh --from <oci ref>    # from another published bundle
+scripts/rehearse.sh --keep              # leave the container and its volume
+```
+
+Everything runs in a privileged `docker:29.7.2-dind` container named
+`erp-rehearsal`, with a Docker volume of the same name; a second run refuses
+while either still exists. Nothing is mounted from the checkout and no
+credential enters the container: the working tree's `bundle/` is copied in as
+`git` sees it and built there as `0.0.0-rehearsal.<unix time>`, signed with a
+key made there, while the workstation's own `oras`, with its existing ghcr
+login, pulls the published bundle and copies every image either manifest pins
+into an OCI layout the container's daemon loads. It probes after each step and
+runs `smoke.sh diagnose` on a failure. `--help` prints what the
+workstation needs — `docker`, `oras` logged in to ghcr, and mikefarah's `yq` v4 — and the
+public key that signed the `--from` bundle must be in `REHEARSE_PUBKEY`.
+
 ## Housekeeping, and why not to prune images
 
 The org is on GitHub's free plan: about **500 MB of private package storage**
@@ -354,7 +414,7 @@ the retention policy do it.
 ## When something is wrong
 
 ```console
-sudo morzer status                  # what is deployed and whether it is working
+sudo morzer status                  # what is deployed, its installation id, and whether it works
 sudo morzer doctor                  # read-only diagnostics; exits 3 on a failure
 sudo morzer logs backend --tail 100 # this installation's logs, secrets scrubbed
 sudo morzer ps                      # the containers
