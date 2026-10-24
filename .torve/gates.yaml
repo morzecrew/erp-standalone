@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=schemas/gates.json
+schema_version: 1
+
+# The repository is a morzer release bundle and the workflows that build, sign
+# and publish it (S-0001). The checks below are what the seat can judge: the
+# bundle builds and verifies, Compose reads it, the edge routes and limits on
+# the task's nested daemon with stand-ins for the private component images, and
+# the scripts and workflows lint. Signing, publishing, `morzer init`/`apply`
+# with the real images, and the dev VM stay CI's and the owner's.
+#
+# Each repository check passes with a note while there is nothing for it to
+# check, so the empty tree is green; the comment on each names the S-0001 phase
+# that arms it. The scripts live under .torve/gates/, out of every phase's
+# scope, so a candidate cannot weaken the check that judges it.
+tests:
+  patterns:
+    - "tests/**"
+
+gates:
+  - name: scope
+    run: "@scope"
+    state: blocking
+    origin: structural
+  - name: secrets
+    run: "@secrets"
+    state: blocking
+    origin: structural
+  - name: no-test-tampering
+    run: "@no-test-tampering"
+    state: blocking
+    origin: structural
+  - name: decisions-reported
+    run: "@decisions-reported"
+    state: blocking
+    origin: structural
+  # Armed by S-0001 P1 (bundle/).
+  - name: bundle-verify
+    run: "bash .torve/gates/bundle-verify.sh"
+    input: worktree
+    state: blocking
+    origin: structural
+    timeout: 120
+  # Armed by S-0001 P1 (bundle/compose/compose.yaml).
+  - name: compose-config
+    run: "bash .torve/gates/compose-config.sh"
+    input: worktree
+    state: blocking
+    origin: structural
+    timeout: 60
+  # Armed by S-0001 P1 (tests/compose/stub.yaml). A slot's first run pulls
+  # postgres, pgbouncer, valkey, rustfs and caddy cold.
+  - name: edge-smoke
+    run: "bash .torve/gates/edge-smoke.sh"
+    input: worktree
+    state: blocking
+    origin: structural
+    timeout: 900
+  # Armed by S-0001 P1 (bundle/hooks/) and P2 (scripts/).
+  - name: shellcheck
+    run: "git ls-files -z --cached --others --exclude-standard -- '*.sh' 'bundle/hooks/*' | xargs -0 -r shellcheck -S warning"
+    input: worktree
+    state: blocking
+    origin: structural
+    timeout: 60
+  # Armed by S-0001 P2 (tests/pin/).
+  - name: pin-tests
+    run: "if [ -f tests/pin/run.sh ]; then bash tests/pin/run.sh; else echo 'pin-tests: no tests/pin/run.sh yet; S-0001 P2 arms it'; fi"
+    input: worktree
+    state: blocking
+    origin: structural
+    timeout: 120
+  # Armed by S-0001 P3 (.github/workflows/).
+  - name: actionlint
+    run: "if [ -d .github/workflows ]; then actionlint; else echo 'actionlint: no workflows yet; S-0001 P3 arms it'; fi"
+    input: worktree
+    state: blocking
+    origin: structural
+    timeout: 60
+  - name: zizmor
+    run: "if [ -d .github/workflows ]; then zizmor --offline .github/workflows; else echo 'zizmor: no workflows yet; S-0001 P3 arms it'; fi"
+    input: worktree
+    state: blocking
+    origin: structural
+    timeout: 60
+  - name: acceptance
+    run: "@task.acceptance"
+    state: blocking
+    origin: structural
+    timeout: 900
+    # For a run with no task contract, and what a review round's fix task is
+    # judged by: torve's review leg reads these, and with none it falls back to
+    # `uv run pytest`, which this repository cannot run.
+    commands:
+      - "bash .torve/gates/bundle-verify.sh"
+      - "bash .torve/gates/compose-config.sh"
