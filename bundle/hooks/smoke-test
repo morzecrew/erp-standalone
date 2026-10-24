@@ -16,9 +16,11 @@ if [ "${ERP_DRY_RUN:-0}" = 1 ]; then
 fi
 
 # The edge's own health path, the backend's health and API schema, and the
-# frontend's index.
+# frontend's index. Up to 90 s each: a restore runs this test straight after
+# re-applying the release, with no health check between, while the backend is
+# still starting and the edge answers 502.
 for path in /__platform_healthz /health /v1/openapi.json /; do
-	if ! curl -fsS --max-time 10 --retry 5 --retry-delay 2 --retry-all-errors \
+	if ! curl -fsS --max-time 10 --retry 45 --retry-delay 2 --retry-max-time 90 --retry-all-errors \
 		-o /dev/null "${base}${path}"; then
 		echo "smoke test: ${base}${path} did not answer 2xx" >&2
 		result "${path} did not answer 2xx on 127.0.0.1:${ERP_PARAM_HEALTH_PORT}"

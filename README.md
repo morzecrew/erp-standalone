@@ -258,11 +258,12 @@ bootstrap), start, then the smoke test.
 manager returns to the release that was running and exits 11; nothing is asked
 of you, and the unattended timer does the same. An update that moved the schema
 cannot return that way — the previous release reads only the schema it
-produces — so it stops for a person and exits 12. Say what you decided and
-converge again, or restore the pre-update backup the manager names:
+produces — so it stops for a person and exits 12. Repair the cause, clear the
+flag and converge again, or restore the pre-update backup the manager names:
 
 ```console
-sudo morzer status --clear-intervention=<what you decided>
+sudo morzer doctor                        # what the failed operation left
+sudo morzer status --clear-intervention=  # the flagged operation; or name its id
 sudo morzer apply
 ```
 
@@ -291,11 +292,11 @@ override a refusal.
 ## After a reboot
 
 The systemd unit `erp.service` starts the installation by running
-`apply --startup`, which renders the secrets again to `/run/secrets` before the
-services come up. The rendered files live under `/run`, which a reboot empties,
-while the encrypted state that produces them is on disk — so a machine that
-comes back from a power cut converges without a person, and no secret has to be
-re-entered.
+`apply --startup`, which renders the secrets again to `/run/erp/secrets` before
+the services come up. The rendered files live under `/run`, which a reboot
+empties, while the encrypted state that produces them is on disk — so a machine
+that comes back from a power cut converges without a person, and no secret has
+to be re-entered.
 
 ## Backing up
 
@@ -384,8 +385,8 @@ credential enters the container: the working tree's `bundle/` is copied in as
 key made there, while the workstation's own `oras`, with its existing ghcr
 login, pulls the published bundle and copies every image either manifest pins
 into an OCI layout the container's daemon loads. It probes after each step and
-runs `morzer diagnose` on a failure. `--help` prints what the
-workstation needs — `docker`, `oras` logged in to ghcr, and `yq` — and the
+runs `smoke.sh diagnose` on a failure. `--help` prints what the
+workstation needs — `docker`, `oras` logged in to ghcr, and mikefarah's `yq` v4 — and the
 public key that signed the `--from` bundle must be in `REHEARSE_PUBKEY`.
 
 ## Housekeeping, and why not to prune images

@@ -52,9 +52,18 @@ head of `main`; the first tagged release seals this section under its version.
   returns to the release that was running and exits 11, with nothing asked of
   the operator. An update that moves the schema still stops for a person
   (exit 12), and the way back is restoring the pre-update backup.
-- The dev channel's version names the bundle at HEAD, so `:main` moves only
-  when `bundle/` changes. A merge that ships nothing new no longer publishes a
-  new `*-dev.*` version.
+- The dev channel's version names the last commit that changed `bundle/`, so
+  `:main` moves only when `bundle/` changes. A merge that ships nothing new no
+  longer publishes a new `*-dev.*` version.
+
+### Fixed
+
+- An update could fail at `bootstrap` right after its pre-update backup and
+  stop for a person: PgBouncer refused clients for up to half a minute after
+  Postgres restarted. It now retries the login, and looks Postgres up again,
+  after one second.
+- A restore's smoke test gave up while the backend was still starting. It now
+  waits up to 90 s for each path.
 
 ### Security
 
