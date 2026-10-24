@@ -85,6 +85,13 @@ services:
       PGBOUNCER_DB_HOST: postgres
       PGBOUNCER_DB_USER: postgres
       PGBOUNCER_DB_PASSWORD_FILE: /run/secrets/pgbouncer_password
+      # A cold backup stops Postgres; PgBouncer holds the failure it saw until
+      # these expire. One second each, so it serves clients again about two
+      # seconds after Postgres is ready instead of refusing them with a cached
+      # error.
+      PGBOUNCER_CONF__server_login_retry: 1
+      PGBOUNCER_CONF__dns_max_ttl: 1
+      PGBOUNCER_CONF__dns_nxdomain_ttl: 1
     secrets:
       - pgbouncer_password
     depends_on:

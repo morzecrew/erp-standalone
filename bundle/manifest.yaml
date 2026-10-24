@@ -81,9 +81,10 @@ secrets:
   render_to: /run/erp/secrets
   schema: secrets.schema.yaml
 operations:
-  # Both steps run on every apply and update, before services start, and both
-  # are harmless to repeat: flyway with nothing pending exits 0, and bootstrap
-  # keeps the catalogs and admin that exist. No step seeds data.
+  # All three steps run on every apply and update, before services start, and
+  # all are harmless to repeat: flyway with nothing pending exits 0, bootstrap
+  # keeps the catalogs and admin that exist, and schema-version only reads.
+  # No step seeds data.
   migrate:
     - kind: runtime-service
       service: flyway
@@ -91,6 +92,13 @@ operations:
     - kind: runtime-service
       service: bootstrap
       timeout: 5m
+    # morzer records each release's `schema_at_install` from this step, so
+    # `rollback`, `update`'s compatibility check and the unattended gate judge
+    # against the schema the database holds rather than warning that it is
+    # unknown.
+    - kind: hook
+      command: ["hooks/schema-version"]
+      timeout: 1m
   smoke_test:
     kind: hook
     command: ["hooks/smoke-test"]
@@ -120,11 +128,18 @@ health:
 compatibility:
   # The migrations image's `tech.morze.erp.schema` label, written by
   # scripts/pin.sh; 0 until it runs. Each release reads only the schema it
-  # produces, so a schema change cannot be rolled back without a restore.
+  # produces.
   database_schema_produces: 32
   database_schema_min: 32
   database_schema_max: 32
-  rollback_safe: false
+  # Between two releases on one schema -- where `database_schema_min` = `max` =
+  # `produces` -- morzer rolls back, and returns from a failed update by itself
+  # (exit 11). Across a schema change it refuses the rollback, naming the
+  # pre-update backup, and a failed update stops at exit 12 for a restore.
+  # `scripts/pin.sh --release` writes this from components.yaml's
+  # `backend.rollback_safe` and `frontend.rollback_safe` together, true only
+  # when both are; plain `scripts/pin.sh` leaves it as committed.
+  rollback_safe: true
   # The first manager that reads a secret's `owner`.
   min_manager_version: "0.6.0"
 retention:

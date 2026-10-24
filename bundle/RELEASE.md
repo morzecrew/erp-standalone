@@ -18,5 +18,11 @@ PgBouncer, Valkey, RustFS, and one Caddy edge serving them on one origin.
 
 ## Rolling back
 
-Not automatic: `rollback_safe` is false, because each release reads only the
-schema it produces. Going back after an update needs a restore.
+`rollback_safe` is true. Between two releases on one schema, `morzer rollback`
+returns to the previous release, and an update that fails returns to it by
+itself.
+
+Across a schema change it is a restore, not a rollback: a release reads only
+the schema it produces, so the manager refuses the rollback and names the
+pre-update backup. An update that fails there stops for a person instead of
+returning on its own.

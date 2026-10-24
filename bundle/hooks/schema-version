@@ -1,0 +1,51 @@
+#!/bin/sh
+# Reports the version of the schema the database holds: the highest migration
+# flyway recorded as successful. `rollback`, `update`'s compatibility check and
+# the unattended gate judge a release by what the database actually carries,
+# instead of warning that the schema is unknown.
+set -eu
+
+result() {
+	printf '{"schema_version":%s,"message":"database schema %s"}' "$1" "$1" >&"${ERP_RESULT_FD:-3}"
+}
+
+fail() {
+	printf 'schema-version: %s\n' "$1" >&2
+	printf '{"message":"%s"}' "$1" >&"${ERP_RESULT_FD:-3}"
+	exit 1
+}
+
+if [ "${ERP_DRY_RUN:-0}" = 1 ]; then
+	printf '{"message":"would read the database schema","skipped":true}' >&"${ERP_RESULT_FD:-3}"
+	exit 0
+fi
+
+# The running Postgres, by the labels Compose puts on it: the project and the
+# service together, so a Postgres from another project on the same daemon is
+# not mistaken for this one.
+if ! container=$(
+	docker ps --quiet \
+		--filter label=com.docker.compose.project=erp \
+		--filter label=com.docker.compose.service=postgres
+); then
+	fail "docker ps did not answer"
+fi
+container=$(printf '%s\n' "$container" | sed -n '1p')
+[ -n "$container" ] || fail "no running postgres container of the erp project"
+
+# `-t` and `-A`: the number alone, no header and no padding.
+if ! version=$(docker exec "$container" \
+	psql -U postgres -d erp -tAc \
+	'select max(version::int) from flyway_schema_history where success and version is not null'); then
+	fail "psql could not read the schema version"
+fi
+
+case "$version" in
+	'' | *[!0-9]*)
+		echo "schema-version: the database answered '${version}', which is not a number" >&2
+		printf '{"message":"the database schema version is not a number"}' >&"${ERP_RESULT_FD:-3}"
+		exit 1
+		;;
+esac
+
+result "$version"

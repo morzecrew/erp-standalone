@@ -10,7 +10,10 @@
 # It checks what D-15 asks for: a dev pin is `main`, a release pin is the
 # versions components.yaml names, release mode refuses `main` and `sha-*`, the
 # migrations label lands in all three compatibility fields, pinning twice
-# changes nothing, and no other value in the manifest moves.
+# changes nothing, and no other value in the manifest moves -- plus what D-4
+# asks for: release mode writes `compatibility.rollback_safe` true only when
+# both components.yaml entries are, and refuses a value that is not a boolean,
+# while a plain pin leaves the committed value alone.
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -67,17 +70,17 @@ new_tree() { # new_tree <name>
 	printf '%s' "${dir}"
 }
 
-write_components() { # write_components <tree> <backend version> <frontend version>
+write_components() { # write_components <tree> <backend version> <frontend version> <backend safe> <frontend safe>
 	cat >"$1/components.yaml" <<-EOF
 		backend:
 		  image: ghcr.io/morzecrew/erp-backend
 		  version: $2
-		  rollback_safe: false
+		  rollback_safe: $4
 		  notes: Test backend.
 		frontend:
 		  image: ghcr.io/morzecrew/erp-frontend
 		  version: $3
-		  rollback_safe: false
+		  rollback_safe: $5
 		  notes: Test frontend.
 	EOF
 }
@@ -108,7 +111,9 @@ strip() {
 
 echo "# the dev channel pins main"
 dev=$(new_tree dev)
-write_components "${dev}" 0.0.0 0.0.0
+# components.yaml disagrees with the manifest about rollback_safe, so a plain
+# pin that touched the field would be caught below.
+write_components "${dev}" 0.0.0 0.0.0 false false
 pin "${dev}" >/dev/null
 
 expect "pins the backend to main" \
@@ -127,6 +132,11 @@ echo "# the migrations label reaches all three schema fields"
 expect "database_schema_produces" 7 "$(yaml_get "${dev}" '.compatibility.database_schema_produces')"
 expect "database_schema_min" 7 "$(yaml_get "${dev}" '.compatibility.database_schema_min')"
 expect "database_schema_max" 7 "$(yaml_get "${dev}" '.compatibility.database_schema_max')"
+
+# D-4: plain pinning writes no rollback_safe, so the committed value survives
+# even though components.yaml says otherwise.
+echo "# plain pinning leaves rollback_safe as committed"
+expect "rollback_safe keeps the committed true" true "$(yaml_get "${dev}" '.compatibility.rollback_safe')"
 
 echo "# nothing else in the manifest moves"
 if diff <(strip "${original}") <(strip "${dev}/bundle/manifest.yaml") >/dev/null; then
@@ -149,7 +159,7 @@ expect "a second pin writes the same bytes" "${pinned}" "$(hash "${dev}/bundle/m
 
 echo "# release mode pins the versions components.yaml names"
 release=$(new_tree release)
-write_components "${release}" 1.2.3 4.5.6
+write_components "${release}" 1.2.3 4.5.6 true true
 pin "${release}" --release >/dev/null
 
 expect "pins the backend to its version" \
@@ -163,12 +173,29 @@ expect "pins the frontend to its own version" \
 	"$(yaml_get "${release}" '.images.frontend')"
 expect "records the migrations label too" 7 "$(yaml_get "${release}" '.compatibility.database_schema_produces')"
 
+# D-4: a rollback is safe only when both components are, and release mode is
+# the only writer of the field.
+echo "# release mode writes rollback_safe as the conjunction of both components"
+expect "both true gives true" true "$(yaml_get "${release}" '.compatibility.rollback_safe')"
+
+safe_backend=$(new_tree safe-backend)
+write_components "${safe_backend}" 1.2.3 4.5.6 false true
+pin "${safe_backend}" --release >/dev/null
+expect "a false backend gives false" false \
+	"$(yaml_get "${safe_backend}" '.compatibility.rollback_safe')"
+
+safe_frontend=$(new_tree safe-frontend)
+write_components "${safe_frontend}" 1.2.3 4.5.6 true false
+pin "${safe_frontend}" --release >/dev/null
+expect "a false frontend gives false" false \
+	"$(yaml_get "${safe_frontend}" '.compatibility.rollback_safe')"
+
 echo "# release mode refuses what a release is not made of"
 refuses() { # refuses <what> <backend version> <frontend version> <substring>
 	local what=$1 tree before
 	shift
 	tree=$(new_tree "refuse-${what// /-}")
-	write_components "${tree}" "$1" "$2"
+	write_components "${tree}" "$1" "$2" true true
 	before=$(hash "${tree}/bundle/manifest.yaml")
 	refuse "${what}" "$3" pin "${tree}" --release
 	expect "${what}: the manifest is left alone" "${before}" "$(hash "${tree}/bundle/manifest.yaml")"
@@ -178,6 +205,22 @@ refuses "the branch tag main" main 4.5.6 "is 'main'"
 refuses "a main frontend" 1.2.3 main "is 'main'"
 refuses "a commit tag sha-*" sha-1a2b3c4 4.5.6 "not a commit"
 refuses "a version that is not X.Y.Z" 1.2 4.5.6 "is not X.Y.Z"
+
+# D-4: only a boolean is a release input. A word that is neither, and a quoted
+# boolean -- a string that spells `true` -- are both refused.
+refuses_safe() { # refuses_safe <what> <backend safe> <frontend safe> <substring>
+	local what=$1 tree before
+	shift
+	tree=$(new_tree "refuse-${what// /-}")
+	write_components "${tree}" 1.2.3 4.5.6 "$1" "$2"
+	before=$(hash "${tree}/bundle/manifest.yaml")
+	refuse "${what}" "$3" pin "${tree}" --release
+	expect "${what}: the manifest is left alone" "${before}" "$(hash "${tree}/bundle/manifest.yaml")"
+}
+
+refuses_safe "a rollback_safe that is neither true nor false" maybe false "is not true or false"
+refuses_safe "a quoted 'true', which is a string, not a boolean" '"true"' false "is not true or false"
+refuses_safe "a missing frontend rollback_safe" true null "is not true or false"
 
 echo "# resolve.sh"
 stub_path="${work}/bin:${PATH}"
