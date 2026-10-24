@@ -6,7 +6,7 @@ kind: design
 change:
   type: fix
   scope: bundle
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0001]
 informed_by: []
@@ -131,14 +131,21 @@ questions:
       Declare `rollback_safe: true` on dev builds (D-4)? morzer then rolls back between
       releases on one schema, and returns from a failed update between them, and still
       refuses across a schema change. Lean: yes. A release keeps the conjunction of
-      `components.yaml`'s two values.
+      `components.yaml`'s two values. Settled 2026-10-24: yes, as D-4 states.
+    status: settled
+    settled_by: D-4
   - id: Q-2
     text: >-
       How often should the dev VM's update timer look at `:main`? Lean: every 15 minutes
       (`update.schedule='*:0/15'`). A merge then reaches the VM within one CI run
-      and a quarter of an hour, and a tick with nothing new reads one manifest.
+      and a quarter of an hour, and a tick with nothing new reads one manifest. Settled
+      2026-10-24: every 15 minutes, as D-8 states.
+    status: settled
+    settled_by: D-8
   - id: Q-3
     text: >-
       Commit the workstation rehearsal (phase 4), or keep it out of the repository?
       Lean: commit it. It is the only way to try a bundle's operations before a pull
-      request, and it reuses `smoke.sh`.
+      request, and it reuses `smoke.sh`. Settled 2026-10-24: committed, as D-7 states.
+    status: settled
+    settled_by: D-7

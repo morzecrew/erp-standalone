@@ -70,6 +70,12 @@ gates:
     origin: structural
     timeout: 120
   # Armed by S-0001 P3 (.github/workflows/).
+  - name: version-tests
+    run: "if [ -f tests/version/run.sh ]; then bash tests/version/run.sh; else echo 'version-tests: no tests/version/run.sh yet; S-0002 P1 arms it'; fi"
+    input: worktree
+    state: blocking
+    origin: structural
+    timeout: 120
   - name: actionlint
     run: "if [ -d .github/workflows ]; then actionlint; else echo 'actionlint: no workflows yet; S-0001 P3 arms it'; fi"
     input: worktree
