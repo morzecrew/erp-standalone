@@ -31,13 +31,18 @@ phasing:
       and its fixtures: both true gives true, either false gives false, a non-boolean
       is refused, and plain pinning leaves the committed value. Rewrite `bundle/RELEASE.md`'s
       "Rolling back" section: a rollback works between releases on one schema, and
-      a schema change needs a restore. Settles D-3 and D-4.
+      a schema change needs a restore. Set PgBouncer's three settings in `bundle/compose/compose.yaml`
+      to D-9. Settles D-3, D-4 and D-9.
     scope: [bundle/**, scripts/pin.sh, tests/pin/**]
     acceptance:
       - test -x bundle/hooks/schema-version
       - >-
         yq -e '.operations.migrate[2].kind == "hook" and .operations.migrate[2].command[0]
         == "hooks/schema-version" and .compatibility.rollback_safe == true' bundle/manifest.yaml
+      - >-
+        yq -e '.services.pgbouncer.environment | .PGBOUNCER_CONF__server_login_retry
+        == 1 and .PGBOUNCER_CONF__dns_max_ttl == 1 and .PGBOUNCER_CONF__dns_nxdomain_ttl
+        == 1' bundle/compose/compose.yaml
       - bash .torve/gates/bundle-verify.sh
       - bash .torve/gates/compose-config.sh
       - bash tests/pin/run.sh

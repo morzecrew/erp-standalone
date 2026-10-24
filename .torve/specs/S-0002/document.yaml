@@ -21,10 +21,11 @@ summary: |-
 
   Five phases: the version script, then the bundle's schema hook and rollback declaration, then the workflows, then the workstation rehearsal, then the README and changelog.
 motivation: |-
-  S-0001 shipped a bundle that installs and updates. On 2026-10-24 every other operation was rehearsed on a local machine, and the rehearsal found what CI never ran. Three findings make the dev VM worse than it needs to be, and one breaks an acceptance criterion S-0001 wrote.
+  S-0001 shipped a bundle that installs and updates. On 2026-10-24 every other operation was rehearsed on a local machine, and the rehearsal found what CI never ran. Four findings make the dev VM worse than it needs to be, and one breaks an acceptance criterion S-0001 wrote.
 
   - **A run with nothing new publishes again.** `--version-from-git` describes HEAD. So a scheduled `main.yml` run after a commit outside `bundle/` (a document, a workflow fix) builds a version not yet published, with the same bytes as the last one, and publishes it.
   - **morzer never learns the schema.** A `runtime-service` migration cannot report `schema_version` (morzer's `hooks.md`), so every release is recorded with schema 0. `morzer rollback` and `update` then print "database schema version is unknown" and skip the schema check.
+  - **A backup can break the update it precedes.** The pre-update backup stops Postgres, and PgBouncer then refuses clients for up to 30 s after Postgres is back. `bootstrap` goes through PgBouncer, so it can fail the migrate step.
   - **Every failed update needs a person.** The manifest says `rollback_safe: false`. So an update that fails after migrate (at its smoke test, say) stops at exit 12 and flags the installation for manual intervention, even when the schema did not move. A flagged installation's update timer does nothing, so one bad `:main` stops the dev VM following the channel until someone clears it.
   - **The README is wrong in three places.** The update timer is `erp-update.timer`, not `morzer-update.timer`, and it ticks daily at 03:30, not hourly. And `morzer ls` does not print the installation id that `restore --confirm` needs; `morzer status` does.
 current_state: |-
@@ -42,6 +43,7 @@ current_state: |-
     - `rollback` is refused ("the installed release declares its migrations irreversible"), with the schema unknown.
     - An update whose smoke test fails ends at exit 12 with MANUAL INTERVENTION REQUIRED. `morzer status --clear-intervention=` then `apply` brings the previous release back.
   - **A prototype fixed both.** It added a third migrate step: a hook that reads `max(version)` from `flyway_schema_history` and reports it. morzer then recorded `schema_at_install: 32`. With `rollback_safe: true`, the same failing update returned to the previous release by itself (exit 11, "earlier changes were rolled back"), and `rollback` succeeded.
+  - **PgBouncer outlives a cold backup badly.** On pull request #8's CI, the pre-update backup restarted Postgres. PgBouncer kept refusing clients with a cached DNS and login failure, `bootstrap` failed, and the update stopped at exit 12. The rehearsal reproduced it: clients were refused for about 27 s after Postgres was ready.
   - **The worker ignored SIGTERM.** erp-backend's `bg` runs as PID 1 and waited on an event with no handler. So `restore` spent 2 minutes stopping it, and each rotation 10 s. erp-backend #139 fixes it, and the bundle picks it up through the next pin.
   - `scripts/pin.sh --release` requires `rollback_safe` in `components.yaml` and never writes it.
   - `release.yml`'s update smoke test installs the published `:main` and updates to the release. A customer takes a different path: from `:stable`.
@@ -66,6 +68,8 @@ design:
       Migrate gains a third step: a hook that reads the highest successful versioned migration from `flyway_schema_history` and reports it as `schema_version`. The migrations image's `tech.morze.erp.schema` label counts the same thing, so after a successful migrate the reported schema equals the manifest's `database_schema_produces` (D-3).
 
       With the schema known, `rollback_safe` can tell the truth. Every release declares `database_schema_min` = `max` = `produces`. So morzer's own check refuses a rollback across any schema change, and refuses a failed update's return across one too. `rollback_safe` is left to say only whether anything besides the schema makes going back unsafe, and for a dev build nothing does. The committed manifest says `true`; a release says what `components.yaml` says of both components (D-4).
+
+      PgBouncer retries a failed server login, and looks Postgres up again, after one second rather than fifteen, so a backup's stop window ends when Postgres is ready (D-9).
   - key: proving-the-operations
     md: |-
       `smoke.sh` gains two steps:
