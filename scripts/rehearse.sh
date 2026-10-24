@@ -207,8 +207,11 @@ load_image() {
 	echo "rehearse.sh: loading ${image}"
 	layout=$(mktemp -d "${work}/layout.XXXXXX")
 	oras copy --to-oci-layout "${source}" "${layout}:rehearsal" >/dev/null
-	IMAGE=${image} yq -i -p json -o json \
-		'.manifests[].annotations."io.containerd.image.name" = strenv(IMAGE)' "${layout}/index.json"
+	# oras lists the platform and attestation manifests it copied beside the
+	# tagged index; named too, the last would take the name from it.
+	IMAGE=${image} yq -i -p json -o json '
+		.manifests |= map(select(.annotations."org.opencontainers.image.ref.name" == "rehearsal")) |
+		.manifests[0].annotations."io.containerd.image.name" = strenv(IMAGE)' "${layout}/index.json"
 	tar -C "${layout}" -cf - oci-layout index.json blobs | docker exec -i "${name}" docker load >/dev/null
 	rm -rf "${layout}"
 }
