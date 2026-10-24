@@ -6,7 +6,7 @@ kind: design
 change:
   type: feat
   scope: bundle
-status: draft
+status: accepted
 implementation: none
 depends_on: []
 informed_by: []
@@ -101,12 +101,12 @@ sections:
       - erp-standalone reads the `erp-backend`, `erp-migrations` and `erp-frontend` packages under Manage Actions access.
       - The GitHub App the component repositories dispatch with is installed here.
       - Repository secrets `MINISIGN_DEV_KEY` and `MINISIGN_RELEASE_KEY` hold each password-less secret-key file; repository variables `MINISIGN_DEV_PUBKEY` and `MINISIGN_RELEASE_PUBKEY` hold each bare `RW…` public key.
+      - Seed tag `v0.0.0` is on main, before the workflows land: `--version-from-git` needs a reachable tag, and a later push of a `v*` tag would start `release.yml`.
+      - The `GH_PAT` secret is a classic token with `delete:packages`, which `retention.yml` needs.
 
       To do:
 
-      - Push a seed tag `v0.0.0` on main before the workflows land: `--version-from-git` needs a reachable tag, and a later push of a `v*` tag would start `release.yml`.
-      - Check that the `GH_PAT` secret can delete packages (`delete:packages`); `retention.yml` fails with 401 otherwise.
-      - Give Renovate a `hostRules` token that reads the private packages, for `components.yaml`.
+      - Mend's Renovate app covers this repository, with a repository secret `GHCR_READ_TOKEN` in the developer portal: a classic token with `read:packages` only, for `components.yaml`.
       - Later, with the dev VM: a read-only `read:packages` token, `sudo docker login ghcr.io` with it, and `morzer init` as the README says.
 alternatives:
   - option: >-
@@ -152,9 +152,15 @@ questions:
       two users. (c) No PgBouncer until then. Lean: (a). Every service but those whose
       images start as root stays non-root, the README and CI's smoke test set each
       pair with one command, and a mismatch fails the backend's start loudly. Ask
-      morzer for a group-readable secret so the pairs can merge later.
+      morzer for a group-readable secret so the pairs can merge later. Settled 2026-10-24:
+      (a), as D-7 states.
+    status: settled
+    settled_by: D-7
   - id: Q-2
     text: >-
       Lock D-6 (Valkey durable) and D-18 (both keys as repository secrets)? Lean:
       lock D-6, since a counter lost or evicted restarts document numbering; keep
-      D-18 ASSUMED until a release has been cut and signed once.
+      D-18 ASSUMED until a release has been cut and signed once. Settled 2026-10-24:
+      D-6 is LOCKED; D-18 stays ASSUMED.
+    status: settled
+    settled_by: D-6
