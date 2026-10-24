@@ -1,0 +1,83 @@
+# Publish a bundle that bundle.yml built and smoke-tested in the same run:
+# `:<version>` first, then the channel tag moves to it. main.yml and
+# release.yml call it; pr.yml never does.
+#
+# This is the one workflow that can write packages, and it runs nothing from
+# the bundle.
+name: publish
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit the bundle was built from
+        type: string
+        required: true
+      version:
+        description: The version bundle.yml built
+        type: string
+        required: true
+      archive:
+        description: The archive's file name in the `bundle` artifact
+        type: string
+        required: true
+      channel:
+        description: "Tag to move after publishing: main or stable"
+        type: string
+        required: true
+
+permissions: {}
+
+env:
+  ARTIFACT_TYPE: application/vnd.morzecrew.morzer.release.v1
+  LAYER_TYPE: application/vnd.morzecrew.morzer.release.layer.v1.tar+zstd
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Install tools
+        run: bash .github/workflows/scripts/install-tools.sh oras
+
+      - name: Log in to ghcr
+        env:
+          TOKEN: ${{ github.token }}
+        run: printf %s "${TOKEN}" | oras login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bundle
+          path: ${{ runner.temp }}/dist
+
+      - name: Publish
+        env:
+          VERSION: ${{ inputs.version }}
+          ARCHIVE: ${{ inputs.archive }}
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          repo="ghcr.io/${GITHUB_REPOSITORY,,}"
+          status=0
+          bash .github/workflows/scripts/registry.sh exists "${repo}:${VERSION}" || status=$?
+          case "${status}" in
+          0) echo "::error::${repo}:${VERSION} is already published, and a version never changes content"; exit 1 ;;
+          1) ;;
+          *) exit 1 ;;
+          esac
+          scripts=${GITHUB_WORKSPACE}/.github/workflows/scripts
+          cd "${RUNNER_TEMP}/dist"
+          oras push "${repo}:${VERSION}" --artifact-type "${ARTIFACT_TYPE}" "${ARCHIVE}:${LAYER_TYPE}"
+          oras tag "${repo}:${VERSION}" "${CHANNEL}"
+          bash "${scripts}/registry.sh" exists "${repo}:${CHANNEL}"
+          manifest=$(oras manifest fetch --descriptor "${repo}:${VERSION}" | jq -r '.digest')
+          {
+            echo
+            echo "Published \`${repo}:${VERSION}\` (\`${manifest}\`) and moved \`:${CHANNEL}\` to it."
+          } >>"${GITHUB_STEP_SUMMARY}"

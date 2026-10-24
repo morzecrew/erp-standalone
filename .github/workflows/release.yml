@@ -1,0 +1,65 @@
+# The stable channel: a tag `vX.Y.Z` on main builds the component releases
+# components.yaml names into `:X.Y.Z`, then moves `:stable`.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Refuse a tag that is not vX.Y.Z on main
+        id: tag
+        run: |
+          tag=${GITHUB_REF_NAME}
+          [[ ${tag} =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+            || { echo "::error::${tag} is not vX.Y.Z"; exit 1; }
+          git merge-base --is-ancestor "${GITHUB_SHA}" origin/main \
+            || { echo "::error::${tag} does not point at a commit on main"; exit 1; }
+          echo "version=${tag#v}" >>"${GITHUB_OUTPUT}"
+
+  bundle:
+    needs: guard
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/bundle.yml # zizmor: ignore[self-repository] -- actionlint reads only ./
+    with:
+      ref: ${{ github.sha }}
+      version: ${{ needs.guard.outputs.version }}
+      pin: release
+      channel: stable
+      signing: release
+      on-existing: fail
+    secrets:
+      minisign-key: ${{ secrets.MINISIGN_RELEASE_KEY }}
+
+  publish:
+    needs: [bundle]
+    if: needs.bundle.outputs.proceed == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/publish.yml # zizmor: ignore[self-repository] -- actionlint reads only ./
+    with:
+      ref: ${{ github.sha }}
+      version: ${{ needs.bundle.outputs.version }}
+      archive: ${{ needs.bundle.outputs.archive }}
+      channel: stable
