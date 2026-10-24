@@ -1,0 +1,70 @@
+# Stand-ins for the private component images, for .torve/gates/edge-smoke.sh:
+#
+#   docker compose -f bundle/compose/compose.yaml -f tests/compose/stub.yaml up
+#
+# Every service built from the backend image answers every request with the
+# body `backend`, and the frontend with `frontend`. Each is the pinned caddy
+# image, whose WAF reads a request's whole body before the response, so a 50 MiB
+# upload through the edge is read to its end as the real backend would read it.
+# flyway and bootstrap stay under the `ops` profile, which `up` leaves out.
+
+x-stand-in: &stand-in
+  image: ${ERP_IMAGE_CADDY}
+  command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+  user: "0"
+
+x-stand-in-environment: &stand-in-environment
+  # Above the edge's 51 MiB, so only the edge decides what is too large.
+  CADDY_REQUEST_BODY_MAX_SIZE: 64MiB
+  CADDY_WAF_ENGINE: DetectionOnly
+
+services:
+  backend:
+    <<: *stand-in
+    environment:
+      <<: *stand-in-environment
+      CADDY_EDGE_ADDRESS: ":8000"
+    configs:
+      - source: stand-in-backend
+        target: /etc/caddy/config.d/stand-in.caddy
+    healthcheck: &backend-health
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/v1/probe | grep -qx backend"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  worker:
+    <<: *stand-in
+    environment:
+      <<: *stand-in-environment
+      CADDY_EDGE_ADDRESS: ":8000"
+    configs:
+      - source: stand-in-backend
+        target: /etc/caddy/config.d/stand-in.caddy
+    healthcheck: *backend-health
+
+  frontend:
+    <<: *stand-in
+    environment:
+      <<: *stand-in-environment
+      CADDY_EDGE_ADDRESS: ":8080"
+    configs:
+      - source: stand-in-frontend
+        target: /etc/caddy/config.d/stand-in.caddy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ | grep -qx frontend"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+configs:
+  stand-in-backend:
+    content: |
+      handle {
+      	respond "backend" 200
+      }
+  stand-in-frontend:
+    content: |
+      handle {
+      	respond "frontend" 200
+      }

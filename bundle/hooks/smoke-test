@@ -1,0 +1,30 @@
+#!/bin/sh
+# Smoke test: the edge answers on its loopback health port, routes the API to
+# the backend and everything else to the frontend.
+set -eu
+
+: "${ERP_PARAM_HEALTH_PORT:?ERP_PARAM_HEALTH_PORT is required}"
+base="http://127.0.0.1:${ERP_PARAM_HEALTH_PORT}"
+
+result() {
+	printf '{"message":"%s"}' "$1" >&"${ERP_RESULT_FD:-3}"
+}
+
+if [ "${ERP_DRY_RUN:-0}" = 1 ]; then
+	printf '{"message":"would probe %s","skipped":true}' "${base}" >&"${ERP_RESULT_FD:-3}"
+	exit 0
+fi
+
+# The edge's own health path, the backend's health and API schema, and the
+# frontend's index.
+for path in /__platform_healthz /health /v1/openapi.json /; do
+	if ! curl -fsS --max-time 10 --retry 5 --retry-delay 2 --retry-all-errors \
+		-o /dev/null "${base}${path}"; then
+		echo "smoke test: ${base}${path} did not answer 2xx" >&2
+		result "${path} did not answer 2xx on 127.0.0.1:${ERP_PARAM_HEALTH_PORT}"
+		exit 1
+	fi
+	echo "smoke test: ${path} ok"
+done
+
+result "edge, backend and frontend answer on 127.0.0.1:${ERP_PARAM_HEALTH_PORT}"
