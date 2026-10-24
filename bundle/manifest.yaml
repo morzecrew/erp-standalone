@@ -4,7 +4,6 @@
 # infrastructure behind one Caddy edge.
 api_version: selfhost/v1alpha1
 kind: application-release
-
 metadata:
   name: erp
   # Stamped by `morzer release build --version`, never by hand.
@@ -12,12 +11,10 @@ metadata:
   description: Morze ERP -- backend, frontend and infrastructure behind one edge
   vendor: morzecrew
   release_notes: RELEASE.md
-
 providers:
   runtime: {name: compose}
   secrets: {name: sops-age}
   health: {name: http}
-
 runtimes:
   compose:
     files:
@@ -25,7 +22,6 @@ runtimes:
     options:
       # Every volume lives under this name; changing it orphans the data.
       project: erp
-
 requirements:
   architectures: [amd64]
   tools:
@@ -40,7 +36,6 @@ requirements:
     - "{{ .Parameters.http_port }}"
     - "{{ .Parameters.https_port }}"
     - "{{ .Parameters.health_port }}"
-
 parameters:
   http_port:
     type: port
@@ -68,7 +63,6 @@ parameters:
     default: info
     description: Log verbosity of the backend and the worker
     services: [backend, worker]
-
 # Infrastructure pinned by digest as `repo:tag@sha256:`, the tag kept for
 # Renovate. The three components carry `main` and an all-zero digest until
 # scripts/pin.sh writes their real digests.
@@ -79,15 +73,13 @@ images:
   rustfs: ghcr.io/morzecrew/rustfs:1.0.3@sha256:0ce6d4e5fdd870294d58e060268334964295f7551e2d10cbae0bd2ceefb19931
   flyway: ghcr.io/morzecrew/flyway:13.11@sha256:82de3f12a8be91b2f588a33a26345ee7ba49797c29568b4241e4163432e0deeb
   caddy: ghcr.io/morzecrew/caddy:2.11.7@sha256:2b28afacdb916066cc778ea771af55edaf8191fab03cf5667d5acf930e18bac1
-  backend: ghcr.io/morzecrew/erp-backend:main@sha256:0000000000000000000000000000000000000000000000000000000000000000
-  migrations: ghcr.io/morzecrew/erp-migrations:main@sha256:0000000000000000000000000000000000000000000000000000000000000000
-  frontend: ghcr.io/morzecrew/erp-frontend:main@sha256:0000000000000000000000000000000000000000000000000000000000000000
-
+  backend: ghcr.io/morzecrew/erp-backend:main@sha256:9d86f39514a176a913c652b9fdfeca5e0f1e1818aa323e5dab9d48543c80f59e
+  migrations: ghcr.io/morzecrew/erp-migrations:main@sha256:4f818329788c1cdadbfbc67d3bca18b0cbefff2279aa88f16b51916606b70cf0
+  frontend: ghcr.io/morzecrew/erp-frontend:main@sha256:594865a324953b9dc13963409c8a58cab6242dc835d1cd166efac28202563b04
 secrets:
   source: /etc/erp/secrets.sops.yaml
   render_to: /run/erp/secrets
   schema: secrets.schema.yaml
-
 operations:
   # Both steps run on every apply and update, before services start, and both
   # are harmless to repeat: flyway with nothing pending exits 0, and bootstrap
@@ -103,7 +95,6 @@ operations:
     kind: hook
     command: ["hooks/smoke-test"]
     timeout: 5m
-
 backup:
   volumes:
     # Postgres and Valkey stop together, so a restore never pairs Valkey's
@@ -113,7 +104,6 @@ backup:
     rustfs-data: {consistency: cold}
     # Certificates and ACME state, written once and read back.
     edge-data: {consistency: hot}
-
 # Both on the edge's loopback health port, which always serves plain HTTP.
 health:
   checks:
@@ -127,18 +117,16 @@ health:
       url: "http://127.0.0.1:{{ .Parameters.health_port }}/health"
       timeout: 5s
       start_period: 120s
-
 compatibility:
   # The migrations image's `tech.morze.erp.schema` label, written by
   # scripts/pin.sh; 0 until it runs. Each release reads only the schema it
   # produces, so a schema change cannot be rolled back without a restore.
-  database_schema_produces: 0
-  database_schema_min: 0
-  database_schema_max: 0
+  database_schema_produces: 32
+  database_schema_min: 32
+  database_schema_max: 32
   rollback_safe: false
   # The first manager that reads a secret's `owner`.
   min_manager_version: "0.6.0"
-
 retention:
   releases: 3
   backups: 7
