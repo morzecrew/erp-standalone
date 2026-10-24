@@ -4,5 +4,85 @@ amendments:
     at: '2026-10-24T15:59:14Z'
     title: The Renovate secret is set
     md: >-
-      The owner set `GHCR_READ_TOKEN` in Mend's developer portal on 2026-10-24, so the
-      owner's setup list moves it from to do to done. No decision row changes.
+      The owner set `GHCR_READ_TOKEN` in Mend's developer portal on 2026-10-24, so
+      the owner's setup list moves it from to do to done. No decision row changes.
+  - id: A-2
+    at: '2026-10-24T21:39:31Z'
+    title: >-
+      Dev builds declare rollback_safe: true (S-0002/D-4)
+    changes:
+      - subject: D-13
+        field: text
+        before: >-
+          `compatibility.database_schema_produces` is the migrations image's `tech.morze.erp.schema`
+          label, and `database_schema_min` and `database_schema_max` equal it. The
+          committed manifest says `rollback_safe: false`.
+        after: >-
+          `compatibility.database_schema_produces` is the migrations image's `tech.morze.erp.schema`
+          label, and `database_schema_min` and `database_schema_max` equal it. The
+          committed manifest says `rollback_safe: true`, and `scripts/pin.sh --release`
+          writes the conjunction of `components.yaml`'s two values (S-0002/D-4).
+      - subject: D-13
+        field: fingerprint
+        after: 6b1c56f8e466ca71/b6b3b43e2ac1f7b1
+    md: >-
+      S-0002 shipped a migrate hook that reports the database's schema, so morzer's
+      own check refuses a rollback across a schema change, and dev builds now declare
+      `rollback_safe: true`. A release takes the conjunction of `components.yaml`'s
+      values, which `pin.sh --release` now writes.
+  - id: A-3
+    at: '2026-10-24T21:39:31Z'
+    title: >-
+      The dev version names the last bundle commit (S-0002/D-1, D-2)
+    changes:
+      - subject: D-16
+        field: text
+        before: >-
+          `main.yml` builds with `--version-from-git` (`<next-patch>-dev.<n>.g<sha>`,
+          a prerelease) and publishes `:<version>` then moves `:main`. `release.yml`
+          runs on a tag `vX.Y.Z` on main, refuses one that is not, builds `--version
+          X.Y.Z`, and publishes `:X.Y.Z` then moves `:stable`. `pr.yml` builds `--version
+          0.0.0-pr.<number>`. Any publish first refuses a version whose tag already
+          exists.
+        after: >-
+          `main.yml` builds as `scripts/version.sh` names it (S-0002/D-1): `<next-patch>-dev.<n>.g<sha>`
+          of the last commit that changed `bundle/`, a prerelease, and publishes `:<version>`
+          then moves `:main`. `release.yml` runs on a tag `vX.Y.Z` on main, refuses
+          one that is not, builds `--version X.Y.Z`, and publishes `:X.Y.Z` then moves
+          `:stable`. `pr.yml` builds `--version 0.0.0-pr.<number>`. Any publish first
+          refuses a version whose tag already exists.
+      - subject: D-16
+        field: fingerprint
+        after: f2b32dbdb6c12b67/a2ae58da4858baa1
+    md: >-
+      `--version-from-git` counted every commit, so a scheduled run after a commit
+      outside `bundle/` published identical bytes under a new version. S-0002 names
+      the version after the last commit that changed `bundle/`.
+  - id: A-4
+    at: '2026-10-24T21:39:32Z'
+    title: >-
+      The update smoke test starts from the caller's channel (S-0002/D-5, D-6)
+    changes:
+      - subject: D-19
+        field: text
+        before: >-
+          A bundle is smoke-tested on the runner before it is published, in a job
+          with `packages: read`: a fresh `sudo morzer init` and `apply`, and, when
+          `:main` exists, an `init` from the published `:main` then `morzer update`
+          to the new archive. Each probes the loopback health port. Publishing is
+          a separate job with `packages: write` that needs the smoke job.
+        after: >-
+          A bundle is smoke-tested on the runner before it is published, in jobs with
+          `packages: read`: a fresh `sudo morzer init` and `apply`, then a backup
+          and a restore (S-0002/D-5); and, when the caller's channel tag exists (`:stable`
+          for `release.yml`, `:main` otherwise, S-0002/D-6), an `init` from that published
+          bundle, `morzer update` to the new archive, and `morzer rollback` back to
+          it or its refusal for the right reason. Each probes the loopback health
+          port. Publishing is a separate job with `packages: write` that needs the
+          smoke jobs.
+      - subject: D-19
+        field: fingerprint
+        after: 9d40300eab58079b/a2ae58da4858baa1
+    md: >-
+      S-0002 proves backup, restore and rollback on every bundle, and starts `release.yml`'s
+      update test from `:stable`, the path a customer takes, rather than from `:main`.

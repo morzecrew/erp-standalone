@@ -92,12 +92,12 @@ decisions:
       <installation id>`, with the id read from `morzer status --json`, and fails
       unless both markers read `before`. `rollback <published archive> <new archive>`
       runs `morzer rollback`. It passes when the rollback succeeds, and when it exits
-      9 while the two archives' `manifest.yaml` declare different `database_schema_produces`;
-      it fails otherwise. Both reach Postgres and Valkey with `docker exec`, finding
-      each container by its Compose labels. `smoke-install` runs `backup-restore`
-      then `probe` after its probe, and `smoke-update` runs `rollback` then `probe`
-      after the update's probe. `install` pulls morzer's volume helper only when the
-      daemon lacks it.
+      9 while the new archive's `manifest.yaml` declares `rollback_safe: false` or
+      the two archives declare different `database_schema_produces`; it fails otherwise.
+      Both reach Postgres and Valkey with `docker exec`, finding each container by
+      its Compose labels. `smoke-install` runs `backup-restore` then `probe` after
+      its probe, and `smoke-update` runs `rollback` then `probe` after the update's
+      probe. `install` pulls morzer's volume helper only when the daemon lacks it.
     paths: [.github/workflows/scripts/smoke.sh, .github/workflows/bundle.yml]
     consequence: >-
       Every bundle CI builds has restored its own backup and rolled back to the published
@@ -106,6 +106,7 @@ decisions:
       The rehearsal proved these by hand. Only CI repeats them for every bundle, on
       the runner as root, as S-0001/D-19's smoke tests do.
     cites: [S-0001/D-19]
+    fingerprint: 890f2767114ac958/d84aefac59d98a08
   - id: D-6
     grade: ASSUMED
     text: >-
@@ -130,17 +131,18 @@ decisions:
       `docker:29.7.2-dind` container with a Docker volume for its `/var/lib/docker`,
       named `erp-rehearsal`. It installs into the container the tools `.github/workflows/scripts/install-tools.sh`
       pins and verifies (`morzer`, `sops`, `age`), and `bash`, `curl`, `jq`, `openssl`,
-      `sudo`, `zstd` and `minisign` from Alpine. It builds the working tree's `bundle/`
-      inside the container as `0.0.0-rehearsal.<unix time>` and signs it with a key
-      made there. It fetches the `--from` bundle (default `ghcr.io/morzecrew/erp-standalone:main`)
+      `sudo`, GNU `tar`, `zstd` and `minisign` from Alpine. It builds the working
+      tree's `bundle/` inside the container as `0.0.0-rehearsal.<unix time>` and signs
+      it with a key made there. It fetches the `--from` bundle (default `ghcr.io/morzecrew/erp-standalone:main`)
       with `oras pull` on the workstation. Each image either manifest pins, and morzer's
-      volume helper, is copied with `oras copy --to-oci-layout` on the workstation
-      and given its name in the layout's `io.containerd.image.name` annotation. It
-      is then loaded into the container with `docker load`. In the container it runs
-      `smoke.sh install`, `probe`, `backup-restore`, `update`, `probe`, `rollback`
-      and `probe`, and `diagnose` on a failure. Unless `--keep`, it removes the container
-      and its volume. `--help` prints the usage and what the workstation needs: `docker`,
-      `oras` logged in to ghcr, and `yq`.
+      volume helper, is copied with `oras copy --to-oci-layout` on the workstation;
+      the layout keeps only its tagged index, named `<repository>@<digest>` in its
+      `io.containerd.image.name` annotation, and is loaded into the container with
+      `docker load`. In the container it runs `smoke.sh install`, `probe`, `backup-restore`,
+      `update`, `probe`, `rollback` and `probe`, and `diagnose` on a failure. Unless
+      `--keep`, it removes the container and its volume. It refuses a `yq` that is
+      not mikefarah's v4, and `--help` prints the usage and what the workstation needs:
+      `docker`, `oras` logged in to ghcr, and that `yq`.
     paths: [scripts/rehearse.sh]
     consequence: >-
       An operator tries a bundle's install, backup, restore, update and rollback before
@@ -150,18 +152,22 @@ decisions:
       image store drops the registry digest the manifest pins (morzer's `ingest.go`
       measured it). A containerd store loads an OCI layout under the annotated name
       and answers the digest reference, so no login is needed inside.
+    fingerprint: 207c7604f45814ec/29e2710794513f3f
   - id: D-8
     grade: ASSUMED
     text: >-
       The README says these things. The update timer is `erp-update.timer`, which
       setting a channel installs; it ticks daily at 03:30 unless `update.schedule`
       says otherwise, and the dev VM sets `update.schedule='*:0/15'`. `morzer status`
-      prints the installation id. `morzer rollback` works between releases on one
-      schema, and across a schema change it is a restore. A failed update returns
-      to the previous release by itself when the schema did not move, and otherwise
-      stops for a person: `morzer status --clear-intervention=` and then `apply`,
-      or a restore. After a reboot, `erp.service` runs `apply --startup`, which renders
-      the secrets again. `scripts/rehearse.sh` rehearses a bundle on a workstation.
+      prints the installation id. Dev builds declare `rollback_safe: true` and a release
+      what `components.yaml` says; where it is true, `morzer rollback` works between
+      releases on one schema, and across a schema change it is a restore. An update
+      that fails after its migrations on an unchanged schema returns to the previous
+      release by itself; one that fails in its migrations, or after moving the schema,
+      stops for a person: `morzer doctor`, `morzer status --clear-intervention=` and
+      then `apply`, or a restore. After a reboot, `erp.service` runs `apply --startup`,
+      which renders the secrets again. `scripts/rehearse.sh` rehearses a bundle on
+      a workstation.
     paths: [/README.md, /CHANGELOG.md]
     consequence: >-
       An operator following the README sets the dev VM's schedule, finds the installation
@@ -170,6 +176,7 @@ decisions:
       The defaults are morzer 0.6.0's (`DefaultUpdateSchedule = "*-*-* 03:30:00"`
       in `internal/adapters/supervisor/systemd/systemd.go`); the rest was rehearsed
       on 2026-10-24.
+    fingerprint: 20201eaf9239e768/5857d8d6dcd5bde0
   - id: D-9
     grade: ASSUMED
     text: >-

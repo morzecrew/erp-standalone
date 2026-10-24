@@ -23,9 +23,9 @@ The README covers installing on a dev VM following `:main` and a customer VM fol
 - Paths: `/README.md` `/CHANGELOG.md`
 - Consequence: an operator can run both channels from the README alone, and a manual prune never deletes the previous release's images or the backup helper
 
-### S-0002/D-8 — `ASSUMED` (A dev version per bundle change, and the operations rehearsed) — implementation: none
+### S-0002/D-8 — `ASSUMED` (A dev version per bundle change, and the operations rehearsed)
 
-The README says these things. The update timer is `erp-update.timer`, which setting a channel installs; it ticks daily at 03:30 unless `update.schedule` says otherwise, and the dev VM sets `update.schedule='*:0/15'`. `morzer status` prints the installation id. `morzer rollback` works between releases on one schema, and across a schema change it is a restore. A failed update returns to the previous release by itself when the schema did not move, and otherwise stops for a person: `morzer status --clear-intervention=` and then `apply`, or a restore. After a reboot, `erp.service` runs `apply --startup`, which renders the secrets again. `scripts/rehearse.sh` rehearses a bundle on a workstation.
+The README says these things. The update timer is `erp-update.timer`, which setting a channel installs; it ticks daily at 03:30 unless `update.schedule` says otherwise, and the dev VM sets `update.schedule='*:0/15'`. `morzer status` prints the installation id. Dev builds declare `rollback_safe: true` and a release what `components.yaml` says; where it is true, `morzer rollback` works between releases on one schema, and across a schema change it is a restore. An update that fails after its migrations on an unchanged schema returns to the previous release by itself; one that fails in its migrations, or after moving the schema, stops for a person: `morzer doctor`, `morzer status --clear-intervention=` and then `apply`, or a restore. After a reboot, `erp.service` runs `apply --startup`, which renders the secrets again. `scripts/rehearse.sh` rehearses a bundle on a workstation.
 
 - Paths: `/README.md` `/CHANGELOG.md`
 - Consequence: An operator following the README sets the dev VM's schedule, finds the installation id, and knows which failures recover by themselves

@@ -10,3 +10,138 @@ amendments:
       second and third comparisons read from the document's root, match nothing, and
       the check can never pass. T-0011 went red on it twice with the settings in place.
       The check now names each setting by its full path. No decision row changes.
+  - id: A-2
+    at: '2026-10-24T21:39:50Z'
+    title: >-
+      A refused rollback also passes from a release not rollback-safe
+    changes:
+      - subject: D-5
+        field: text
+        before: >-
+          `.github/workflows/scripts/smoke.sh` gains two steps. `backup-restore` writes
+          the marker `before` into a table `smoke_marker` in the `erp` database and
+          into the Valkey key `smoke:marker`. It takes `morzer backup --reason smoke`
+          and writes `after` into both. Then it runs `morzer restore --backup <that
+          id> --force --confirm <installation id>`, with the id read from `morzer
+          status --json`, and fails unless both markers read `before`. `rollback <published
+          archive> <new archive>` runs `morzer rollback`. It passes when the rollback
+          succeeds, and when it exits 9 while the two archives' `manifest.yaml` declare
+          different `database_schema_produces`; it fails otherwise. Both reach Postgres
+          and Valkey with `docker exec`, finding each container by its Compose labels.
+          `smoke-install` runs `backup-restore` then `probe` after its probe, and
+          `smoke-update` runs `rollback` then `probe` after the update's probe. `install`
+          pulls morzer's volume helper only when the daemon lacks it.
+        after: >-
+          `.github/workflows/scripts/smoke.sh` gains two steps. `backup-restore` writes
+          the marker `before` into a table `smoke_marker` in the `erp` database and
+          into the Valkey key `smoke:marker`. It takes `morzer backup --reason smoke`
+          and writes `after` into both. Then it runs `morzer restore --backup <that
+          id> --force --confirm <installation id>`, with the id read from `morzer
+          status --json`, and fails unless both markers read `before`. `rollback <published
+          archive> <new archive>` runs `morzer rollback`. It passes when the rollback
+          succeeds, and when it exits 9 while the new archive's `manifest.yaml` declares
+          `rollback_safe: false` or the two archives declare different `database_schema_produces`;
+          it fails otherwise. Both reach Postgres and Valkey with `docker exec`, finding
+          each container by its Compose labels. `smoke-install` runs `backup-restore`
+          then `probe` after its probe, and `smoke-update` runs `rollback` then `probe`
+          after the update's probe. `install` pulls morzer's volume helper only when
+          the daemon lacks it.
+      - subject: D-5
+        field: fingerprint
+        after: 890f2767114ac958/d84aefac59d98a08
+    md: >-
+      Review of pull request #10. morzer refuses any rollback from a release that
+      declares `rollback_safe: false`, and a release takes that value from `components.yaml`.
+      As written, `smoke.sh rollback` would have failed every release after the first
+      on one schema.
+  - id: A-3
+    at: '2026-10-24T21:39:50Z'
+    title: >-
+      The rehearsal names each image by digest, on the tagged index alone
+    changes:
+      - subject: D-7
+        field: text
+        before: >-
+          `scripts/rehearse.sh [--from <oci ref>] [--keep]` rehearses on a workstation
+          what `smoke-install` and `smoke-update` prove on the runner. It starts a
+          privileged `docker:29.7.2-dind` container with a Docker volume for its `/var/lib/docker`,
+          named `erp-rehearsal`. It installs into the container the tools `.github/workflows/scripts/install-tools.sh`
+          pins and verifies (`morzer`, `sops`, `age`), and `bash`, `curl`, `jq`, `openssl`,
+          `sudo`, `zstd` and `minisign` from Alpine. It builds the working tree's
+          `bundle/` inside the container as `0.0.0-rehearsal.<unix time>` and signs
+          it with a key made there. It fetches the `--from` bundle (default `ghcr.io/morzecrew/erp-standalone:main`)
+          with `oras pull` on the workstation. Each image either manifest pins, and
+          morzer's volume helper, is copied with `oras copy --to-oci-layout` on the
+          workstation and given its name in the layout's `io.containerd.image.name`
+          annotation. It is then loaded into the container with `docker load`. In
+          the container it runs `smoke.sh install`, `probe`, `backup-restore`, `update`,
+          `probe`, `rollback` and `probe`, and `diagnose` on a failure. Unless `--keep`,
+          it removes the container and its volume. `--help` prints the usage and what
+          the workstation needs: `docker`, `oras` logged in to ghcr, and `yq`.
+        after: >-
+          `scripts/rehearse.sh [--from <oci ref>] [--keep]` rehearses on a workstation
+          what `smoke-install` and `smoke-update` prove on the runner. It starts a
+          privileged `docker:29.7.2-dind` container with a Docker volume for its `/var/lib/docker`,
+          named `erp-rehearsal`. It installs into the container the tools `.github/workflows/scripts/install-tools.sh`
+          pins and verifies (`morzer`, `sops`, `age`), and `bash`, `curl`, `jq`, `openssl`,
+          `sudo`, GNU `tar`, `zstd` and `minisign` from Alpine. It builds the working
+          tree's `bundle/` inside the container as `0.0.0-rehearsal.<unix time>` and
+          signs it with a key made there. It fetches the `--from` bundle (default
+          `ghcr.io/morzecrew/erp-standalone:main`) with `oras pull` on the workstation.
+          Each image either manifest pins, and morzer's volume helper, is copied with
+          `oras copy --to-oci-layout` on the workstation; the layout keeps only its
+          tagged index, named `<repository>@<digest>` in its `io.containerd.image.name`
+          annotation, and is loaded into the container with `docker load`. In the
+          container it runs `smoke.sh install`, `probe`, `backup-restore`, `update`,
+          `probe`, `rollback` and `probe`, and `diagnose` on a failure. Unless `--keep`,
+          it removes the container and its volume. It refuses a `yq` that is not mikefarah's
+          v4, and `--help` prints the usage and what the workstation needs: `docker`,
+          `oras` logged in to ghcr, and that `yq`.
+      - subject: D-7
+        field: fingerprint
+        after: 207c7604f45814ec/29e2710794513f3f
+    md: >-
+      Two fixes after the rehearsal ran. oras lists the platform and attestation manifests
+      it copied beside the tagged index; naming every entry let the amd64 manifest
+      take the name, so the pinned digest did not resolve and morzer re-pulled each
+      multi-platform image. Naming by tag would also orphan an image when the two
+      bundles pin two digests under one tag. And a non-mikefarah `yq` now fails before
+      the container starts.
+  - id: A-4
+    at: '2026-10-24T21:39:51Z'
+    title: Only a failure after migrate returns by itself
+    changes:
+      - subject: D-8
+        field: text
+        before: >-
+          The README says these things. The update timer is `erp-update.timer`, which
+          setting a channel installs; it ticks daily at 03:30 unless `update.schedule`
+          says otherwise, and the dev VM sets `update.schedule='*:0/15'`. `morzer
+          status` prints the installation id. `morzer rollback` works between releases
+          on one schema, and across a schema change it is a restore. A failed update
+          returns to the previous release by itself when the schema did not move,
+          and otherwise stops for a person: `morzer status --clear-intervention=`
+          and then `apply`, or a restore. After a reboot, `erp.service` runs `apply
+          --startup`, which renders the secrets again. `scripts/rehearse.sh` rehearses
+          a bundle on a workstation.
+        after: >-
+          The README says these things. The update timer is `erp-update.timer`, which
+          setting a channel installs; it ticks daily at 03:30 unless `update.schedule`
+          says otherwise, and the dev VM sets `update.schedule='*:0/15'`. `morzer
+          status` prints the installation id. Dev builds declare `rollback_safe: true`
+          and a release what `components.yaml` says; where it is true, `morzer rollback`
+          works between releases on one schema, and across a schema change it is a
+          restore. An update that fails after its migrations on an unchanged schema
+          returns to the previous release by itself; one that fails in its migrations,
+          or after moving the schema, stops for a person: `morzer doctor`, `morzer
+          status --clear-intervention=` and then `apply`, or a restore. After a reboot,
+          `erp.service` runs `apply --startup`, which renders the secrets again. `scripts/rehearse.sh`
+          rehearses a bundle on a workstation.
+      - subject: D-8
+        field: fingerprint
+        after: 20201eaf9239e768/5857d8d6dcd5bde0
+    md: >-
+      Review of pull request #10. migrate is a step morzer never compensates (`RequiresInterventionOnFailure`),
+      so a failure in flyway, bootstrap or the schema hook always ends at exit 12.
+      Only a failure after migrate returns by itself, and only where `rollback_safe`
+      is true, which a release takes from `components.yaml`.
