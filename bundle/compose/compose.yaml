@@ -30,7 +30,7 @@ x-backend-environment: &backend-environment
   S3__HOST: rustfs
   S3__PORT: 9000
   S3__USER: erp
-  S3__PASSWORD_FILE: /run/secrets/s3_secret_key
+  S3__PASSWORD_FILE: /run/secrets/rustfs_secret_key
   AUTH__ACCESS_SECRET_KEY_B64_FILE: /run/secrets/access_secret_key
   AUTH__REFRESH_PEPPER_B64_FILE: /run/secrets/refresh_pepper
   AUTH__API_KEY_PEPPER_B64_FILE: /run/secrets/api_key_pepper
@@ -84,7 +84,7 @@ services:
     environment:
       PGBOUNCER_DB_HOST: postgres
       PGBOUNCER_DB_USER: postgres
-      PGBOUNCER_DB_PASSWORD_FILE: /run/secrets/pgbouncer_password
+      PGBOUNCER_DB_PASSWORD_FILE: /run/secrets/postgres_password
       # A cold backup stops Postgres; PgBouncer holds the failure it saw until
       # these expire. One second each, so it serves clients again about two
       # seconds after Postgres is ready instead of refusing them with a cached
@@ -93,7 +93,7 @@ services:
       PGBOUNCER_CONF__dns_max_ttl: 1
       PGBOUNCER_CONF__dns_nxdomain_ttl: 1
     secrets:
-      - pgbouncer_password
+      - postgres_password
     depends_on:
       postgres:
         condition: service_healthy
@@ -158,7 +158,7 @@ services:
     secrets: &backend-secrets
       - postgres_password
       - valkey_password
-      - s3_secret_key
+      - rustfs_secret_key
       - access_secret_key
       - refresh_pepper
       - api_key_pepper
@@ -254,7 +254,7 @@ services:
     secrets:
       - postgres_password
       - valkey_password
-      - s3_secret_key
+      - rustfs_secret_key
       - access_secret_key
       - refresh_pepper
       - api_key_pepper
@@ -269,12 +269,8 @@ configs:
 secrets:
   postgres_password:
     file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/postgres_password
-  pgbouncer_password:
-    file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/pgbouncer_password
   valkey_password:
     file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/valkey_password
-  s3_secret_key:
-    file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/s3_secret_key
   rustfs_secret_key:
     file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/rustfs_secret_key
   access_secret_key:

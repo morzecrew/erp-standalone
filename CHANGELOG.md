@@ -20,9 +20,10 @@ head of `main`; the first tagged release seals this section under its version.
   the protected-resource metadata to the backend and everything else to the
   frontend, so there is no CORS to configure and no cookie domain to widen.
 - Secrets as files, never as variables: each service reads what it needs
-  through `*_FILE` from `/run/secrets`, and the database password and the S3
-  key each have two declarations set from one value, because their readers run
-  as different users.
+  through `*_FILE` from `/run/secrets`. Every infrastructure secret — the
+  database password, the S3 key and the key material — is generated at `init`
+  with one declaration and one owner, so the operator sets only
+  `admin_password`.
 - A durable Valkey (`aof`, `noeviction`), because every document's `number_id`
   is a counter it holds.
 - `apply` and every update migrate before the services start: flyway from the

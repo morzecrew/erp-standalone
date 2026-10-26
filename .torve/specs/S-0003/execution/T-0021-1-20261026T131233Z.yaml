@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0021
+phase: 2
+base: 4edc3e86b2d2f8819c9c0f9bb7e624291c36d4b9
+commit: 39836b8d30bdbcc56b637cdf871b4c8e795be7f1
+at: '2026-10-26T13:12:33Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: D-6
+    grade: ASSUMED
+    class: spec-gap
+    at: '2026-10-26T13:07:09Z'
+    claim: >-
+      The step this row puts in smoke.sh, bundle.yml and rehearse.sh follows the row
+      as written -- the rotated password is read from /run/secrets/postgres_password
+      inside the PgBouncer container and the marker is read through PgBouncer -- but
+      the tree it lands in does not yet carry the sibling rows it presumes: postgres_password
+      is declared with no generator, so 'morzer secret rotate postgres_password' has
+      nothing to generate from, and the pgbouncer service reads and mounts pgbouncer_password
+      rather than postgres_password. The step therefore stays red until S-0003/D-1
+      and S-0003/D-2 land, which no row of this contract settles.
+    evidence: >-
+      bundle/secrets.schema.yaml:19-23 — postgres_password is declared required with
+      owner 65532 and no generator, while valkey_password at bundle/secrets.schema.yaml:34
+      carries one. bundle/compose/compose.yaml:87 is the pgbouncer service reading
+      PGBOUNCER_DB_PASSWORD_FILE: /run/secrets/pgbouncer_password, and its secrets
+      list at bundle/compose/compose.yaml:96 mounts that one secret.
+    action: decided
+    proposal: >-
+      S-0003 should say the landing order: D-1, D-2 and D-3 land with or before D-5
+      and D-6, or that the smoke-install step and the rehearsal step running 'smoke
+      rotate-db-password' are expected red until they do.
+    notes: >-
+      This attempt also makes the enumerations in two standing rows stale, without
+      departing from them: S-0001/D-12 says operations.migrate is flyway then bootstrap,
+      and S-0002/D-7 lists the rehearsal's sequence as install, probe, backup-restore,
+      update, probe, rollback, probe. bundle/manifest.yaml now runs hooks/db-password
+      ahead of flyway (S-0003/D-5) and scripts/rehearse.sh runs smoke rotate-db-password
+      and a probe after backup-restore (S-0003/D-6); the author may fold both into
+      those rows.

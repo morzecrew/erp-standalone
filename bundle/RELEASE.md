@@ -10,9 +10,10 @@ PgBouncer, Valkey, RustFS, and one Caddy edge serving them on one origin.
 
 ## Before you install
 
-- Set the operator secrets, each pair from one value: `postgres_password` and
-  `pgbouncer_password`, `s3_secret_key` and `rustfs_secret_key`; and
-  `admin_password`. The rest are generated.
+- Set the one operator secret, `admin_password`, the first administrator's
+  password. Every infrastructure secret — the database password, the Valkey
+  password, the RustFS secret key and the key material — is generated at
+  `init`.
 - Give `--domain` for HTTPS. Sign-in needs it: the auth cookies are `Secure`.
 - Docker Engine 28.0.0 and Compose v2.35.0 or later, on amd64.
 

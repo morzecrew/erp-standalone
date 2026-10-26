@@ -246,6 +246,12 @@ jobs:
       - name: Probe the restore
         run: bash .github/workflows/scripts/smoke.sh probe
 
+      - name: Rotate the database password
+        run: bash .github/workflows/scripts/smoke.sh rotate-db-password
+
+      - name: Probe the rotation
+        run: bash .github/workflows/scripts/smoke.sh probe
+
       - name: Diagnose
         if: failure()
         run: bash .github/workflows/scripts/smoke.sh diagnose

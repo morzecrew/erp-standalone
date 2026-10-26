@@ -6,16 +6,20 @@
 #   smoke.sh update <archive>               `sudo morzer update` to the archive
 #   smoke.sh probe                          the edge's loopback health port
 #   smoke.sh backup-restore                 back up, write over it, restore, check
+#   smoke.sh rotate-db-password             rotate the database password, apply, read
 #   smoke.sh rollback <published> <new>     `sudo morzer rollback` from <new> to <published>
 #   smoke.sh diagnose                       `morzer status` and the Compose logs
 #   smoke.sh free-disk                      room for the release's disk requirement
 #
-# `install` trusts every key it is given and refuses an unsigned release. The
-# operator's secrets get throwaway values, each pair set from one value as the
-# operator would; nothing here prints one.
+# `install` trusts every key it is given and refuses an unsigned release. It
+# sets `admin_password`, the one secret the operator sets, from `random`;
+# `init` generates the rest, and nothing here prints a secret.
 #
 # `backup-restore` writes the marker `before` into Postgres and Valkey, backs
 # up, writes `after`, restores, and fails unless both read `before` again.
+# `rotate-db-password` writes `rotated`, rotates `postgres_password`, applies,
+# and fails unless the marker reads `rotated` through PgBouncer: the rotated
+# password reaches the role and every reader of it.
 # `rollback` passes when the rollback succeeds, or when morzer refuses it
 # (exit 9) and either the new archive declares `rollback_safe: false` or the
 # two archives produce different database schemas.
@@ -36,15 +40,31 @@ random() {
 	openssl rand -hex 24
 }
 
-# shortcut: morzer 0.6.0's `secret set` stores the value, then renders every
-# secret to restart the services that read it, and exits 6 while another
-# required secret is unset. Before the first `apply` that is every set but the
-# last; `apply` renders them all and refuses a missing one. Drop this when
-# `secret set` skips the restart on an installation never applied.
-set_secret() {
-	local status=0
-	sudo morzer secret set "$1" || status=$?
-	[ "${status}" -eq 0 ] || [ "${status}" -eq 6 ] || exit "${status}"
+# Whether the archive's secrets schema declares a secret by this name.
+declares() {
+	tar -I zstd -xOf "$1" --wildcards '*secrets.schema.yaml' 2>/dev/null \
+		| grep -E "^[[:space:]]*- name: $2\$" >/dev/null
+}
+
+# shortcut: a bundle published before S-0003 (the `:main` smoke-update starts
+# from until S-0003's bundle is published) generates neither infrastructure
+# pair and declares each twice, so its operator set each pair from one value.
+# morzer 0.6.0's `secret set` exits 6 while another required secret is unset,
+# which before the first `apply` is every set but the last. Drop this once
+# `:main` carries S-0003.
+set_legacy_pairs() {
+	local database storage name value status
+	database=$(random)
+	storage=$(random)
+	for name in postgres_password pgbouncer_password s3_secret_key rustfs_secret_key; do
+		case "${name}" in
+		postgres_password | pgbouncer_password) value=${database} ;;
+		*) value=${storage} ;;
+		esac
+		status=0
+		printf %s "${value}" | sudo morzer secret set "${name}" || status=$?
+		[ "${status}" -eq 0 ] || [ "${status}" -eq 6 ] || exit "${status}"
+	done
 }
 
 install_release() {
@@ -59,14 +79,10 @@ install_release() {
 	sudo morzer init --mode dev --release "${archive}" --require-signature \
 		--no-recovery-recipient --install-units=false "${keys[@]}"
 
-	local database storage
-	database=$(random)
-	storage=$(random)
-	printf %s "${database}" | set_secret postgres_password
-	printf %s "${database}" | set_secret pgbouncer_password
-	printf %s "${storage}" | set_secret s3_secret_key
-	printf %s "${storage}" | set_secret rustfs_secret_key
-	random | set_secret admin_password
+	if declares "${archive}" pgbouncer_password; then
+		set_legacy_pairs
+	fi
+	random | sudo morzer secret set admin_password
 
 	# --verbose: morzer prints a one-shot's output, a migration's error, only then.
 	sudo morzer --verbose apply
@@ -134,6 +150,31 @@ backup_restore() {
 	[ -n "${installation}" ] || die "morzer status reported no installation id"
 	sudo morzer --verbose restore --backup "${id}" --force --confirm "${installation}"
 	check_marker before
+}
+
+# The one reader a rotated password must satisfy: PgBouncer, which connects on
+# to postgres as `postgres`. The password is read from the secret inside the
+# container's shell and passed in the environment, never in an argument here.
+psql_pgbouncer() {
+	# shellcheck disable=SC2016 # expanded by the container's sh
+	sudo docker exec "$(service_container pgbouncer)" sh -c \
+		'PGPASSWORD="$(cat /run/secrets/postgres_password)" exec psql -h 127.0.0.1 -p 6432 -U postgres -d erp -v ON_ERROR_STOP=1 -tAqc "$1"' \
+		pgbouncer "$1"
+}
+
+rotate_db_password() {
+	# The marker is written once, before the rotation, and read after it: what
+	# it proves is that a connection with the new password reaches the data,
+	# not that the row was reinserted.
+	write_marker rotated
+	sudo morzer secret rotate postgres_password
+	sudo morzer --verbose apply
+
+	local database
+	database=$(psql_pgbouncer "select value from smoke_marker")
+	[ "${database}" = rotated ] \
+		|| die "smoke_marker reads '${database}' through pgbouncer, not 'rotated'"
+	echo "smoke.sh: the rotated database password reads the marker through pgbouncer"
 }
 
 # A field an archive's manifest declares, by its key: `rollback_safe`,
@@ -204,11 +245,12 @@ update)
 	;;
 probe) probe ;;
 backup-restore) backup_restore ;;
+rotate-db-password) rotate_db_password ;;
 rollback)
 	[ $# -eq 3 ] || die "usage: smoke.sh rollback <published archive> <new archive>"
 	rollback "$2" "$3"
 	;;
 free-disk) free_disk ;;
 diagnose) diagnose ;;
-*) die "usage: smoke.sh install|update|probe|backup-restore|rollback|diagnose|free-disk" ;;
+*) die "usage: smoke.sh install|update|probe|backup-restore|rotate-db-password|rollback|diagnose|free-disk" ;;
 esac
