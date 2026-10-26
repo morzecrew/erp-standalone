@@ -95,7 +95,7 @@ sudo morzer init --mode dev --product erp \
   --domain erp.dev.example.com \
   --recovery-recipient "$OFFLINE_AGE_RECIPIENT"
 
-# 3. Set the operator secrets (see below), then start it.
+# 3. Set the operator secret (see below), then start it.
 sudo morzer apply
 
 # 4. Pull the image backups read volumes through: doctor's backup.volume-helper
@@ -154,7 +154,7 @@ sudo morzer init --product erp \
   --domain erp.example.com \
   --recovery-recipient "$OFFLINE_AGE_RECIPIENT"
 
-# the operator secrets, then:
+# the operator secret, then:
 sudo morzer apply
 
 # then the `docker pull` that doctor's backup.volume-helper warning prints:
@@ -201,48 +201,40 @@ rendered to a file under `/run/secrets` for the product to read. A file has
 one owner, so a service that does not run as root reads one only when the
 schema gives it that file.
 
-Four secrets are generated at `init` and need nothing from you:
-`valkey_password`, `access_secret_key`, `refresh_pepper` and `api_key_pepper`.
-Five are yours, and each is set with `morzer secret set`, which reads the
-value without echo from the terminal or from stdin — there is no flag for a
-value, because argv is world-readable through `/proc`.
+`init` generates every infrastructure secret, and **`admin_password` is the
+one secret you set**, with `morzer secret set`, which reads the value without
+echo from the terminal or from stdin — there is no flag for a value, because
+argv is world-readable through `/proc`.
 
-**Two of the five are pairs.** The database password is read by the backend
-(running as user 65532) and by PgBouncer (running as its image's `postgres`
-user, 70), and the S3 key by the backend (65532) and by RustFS (10001). Since
-a file has one owner, each is declared twice — a generator would make two
-different values, so the operator sets both declarations **from one value**:
+| Generated at `init` | Read by | Owner |
+|---|---|---|
+| `postgres_password` | postgres, PgBouncer, backend, worker | 65532 |
+| `valkey_password` | valkey, backend, worker | 65532 |
+| `rustfs_secret_key` | rustfs, backend, worker | 65532 |
+| `access_secret_key` | backend, worker | 65532 |
+| `refresh_pepper` | backend, worker | 65532 |
+| `api_key_pepper` | backend, worker | 65532 |
+
+The backend, worker and bootstrap run as user 65532, and the pgbouncer and
+rustfs images read their secrets as root before dropping to their own user, so
+every non-root reader here is 65532; postgres, valkey and flyway start as root
+and read any file. One value has one declaration, so every reader of a value
+reads the one file that holds it — there is no second copy to keep in step.
 
 ```console
-# The database password: one value, both declarations.
-read -rs DB_PASSWORD
-printf '%s' "$DB_PASSWORD" | sudo morzer secret set postgres_password
-printf '%s' "$DB_PASSWORD" | sudo morzer secret set pgbouncer_password
-
-# The S3 secret key: one value, both declarations.
-read -rs S3_SECRET
-printf '%s' "$S3_SECRET" | sudo morzer secret set s3_secret_key
-printf '%s' "$S3_SECRET" | sudo morzer secret set rustfs_secret_key
-
-# The first administrator's password.
+# The first administrator's password — the one secret you set.
 sudo morzer secret set admin_password
 ```
 
-On a fresh install, morzer 0.6.0 prints `required secret "…" is not set` for
-every `secret set` but the last. The value is stored: morzer then renders every
-secret to restart the services that read this one, and refuses while another
-is still unset. `apply` renders them all and names any that is missing.
-
-If a pair drifts apart the backend does not start, and the failure is loud
-rather than a stale login: the two files are read by two processes that must
-agree with the one password Postgres holds.
+`apply` renders every secret and names any that is missing.
 
 `sudo morzer secret list` prints names, fingerprints and when each last
 changed — never a value. `sudo morzer secret edit` opens several at once when
 a change belongs together, and `sudo morzer doctor` reports an unset operator
-secret as a failure before you apply. `api_key_pepper` and the two database
-passwords have no rotation period: rotating the pepper revokes every API key,
-and rotating the database password is the procedure below, not a timer.
+secret as a failure before you apply. `api_key_pepper` has no rotation period —
+rotating it revokes every API key — and neither does `postgres_password` or
+`rustfs_secret_key`; changing the database password is the procedure below,
+not a timer.
 
 ## Updating
 
@@ -397,35 +389,22 @@ there to reinstall.
 
 ## Changing the database password
 
-The `postgres` role's password is one value in two declarations and one row in
-the database, so changing it means changing all three, in this order.
+`postgres_password` is one declaration and the `postgres` role holds the same
+value, so `morzer secret rotate` writes the new value and the next `morzer
+apply` sets the role from it and re-renders the files the services read. Run
+the two together: until the apply, the running containers still hold the old
+file.
 
 ```console
 # 1. A backup you can go back to.
 sudo morzer backup --reason before-password-change
 
-# 2. The same new value in both declarations.
-read -rs NEW_DB_PASSWORD
-printf '%s' "$NEW_DB_PASSWORD" | sudo morzer secret set postgres_password
-printf '%s' "$NEW_DB_PASSWORD" | sudo morzer secret set pgbouncer_password
+# 2. A new value in the one declaration.
+sudo morzer secret rotate postgres_password
 
-# 3. Change the role in Postgres. `\password` reads the value without echo and
-#    sends an ALTER ROLE with it hashed in the client, so the plaintext never
-#    reaches the server's log or this machine's process list.
-sudo docker compose -p erp exec postgres psql -U postgres
-postgres=# \password postgres
-
-# 4. Re-render the secret files and re-create the services that read them.
+# 3. Set the role from it and re-render the secret files.
 sudo morzer apply
 ```
-
-Typed by hand, the same step is
-`ALTER ROLE postgres WITH PASSWORD '<the new value>';` — but a password in a
-command line is a password in `ps` and in the shell's history, which is why
-`\password` above is the recommended form. Between step 2 and step 4 the
-running containers still hold the old file, so do this in one sitting; if a
-pair is left mismatched, the backend's start fails loudly and re-running is
-safe.
 
 ## Rehearsing a bundle
 
