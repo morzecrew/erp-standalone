@@ -10,9 +10,9 @@
 #   smoke.sh diagnose                       `morzer status` and the Compose logs
 #   smoke.sh free-disk                      room for the release's disk requirement
 #
-# `install` trusts every key it is given and refuses an unsigned release. The
-# operator's secrets get throwaway values, each pair set from one value as the
-# operator would; nothing here prints one.
+# `install` trusts every key it is given and refuses an unsigned release. It
+# sets `admin_password`, the one secret the operator sets, from `random`;
+# `init` generates the rest, and nothing here prints a secret.
 #
 # `backup-restore` writes the marker `before` into Postgres and Valkey, backs
 # up, writes `after`, restores, and fails unless both read `before` again.
@@ -36,17 +36,6 @@ random() {
 	openssl rand -hex 24
 }
 
-# shortcut: morzer 0.6.0's `secret set` stores the value, then renders every
-# secret to restart the services that read it, and exits 6 while another
-# required secret is unset. Before the first `apply` that is every set but the
-# last; `apply` renders them all and refuses a missing one. Drop this when
-# `secret set` skips the restart on an installation never applied.
-set_secret() {
-	local status=0
-	sudo morzer secret set "$1" || status=$?
-	[ "${status}" -eq 0 ] || [ "${status}" -eq 6 ] || exit "${status}"
-}
-
 install_release() {
 	local archive=$1 key
 	shift
@@ -59,14 +48,7 @@ install_release() {
 	sudo morzer init --mode dev --release "${archive}" --require-signature \
 		--no-recovery-recipient --install-units=false "${keys[@]}"
 
-	local database storage
-	database=$(random)
-	storage=$(random)
-	printf %s "${database}" | set_secret postgres_password
-	printf %s "${database}" | set_secret pgbouncer_password
-	printf %s "${storage}" | set_secret s3_secret_key
-	printf %s "${storage}" | set_secret rustfs_secret_key
-	random | set_secret admin_password
+	random | sudo morzer secret set admin_password
 
 	# --verbose: morzer prints a one-shot's output, a migration's error, only then.
 	sudo morzer --verbose apply
