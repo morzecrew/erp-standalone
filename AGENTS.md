@@ -30,6 +30,13 @@ The README says these things. The update timer is `erp-update.timer`, which sett
 - Paths: `/README.md` `/CHANGELOG.md`
 - Consequence: An operator following the README sets the dev VM's schedule, finds the installation id, and knows which failures recover by themselves
 
+### S-0003/D-7 — `ASSUMED` (The infrastructure secrets are generated, one declaration each) — implementation: none
+
+The README's "The operator secrets" names `admin_password` as the one secret the operator sets, lists the generated ones and their owners, and drops the pairs. "Changing the database password" becomes: a backup, `sudo morzer secret rotate postgres_password`, then `sudo morzer apply`, run together. `bundle/RELEASE.md`'s "Before you install" names only `admin_password`. The CHANGELOG's Unreleased section says the infrastructure secrets are generated and that the operator sets only `admin_password`.
+
+- Paths: `/README.md` `bundle/RELEASE.md` `/CHANGELOG.md`
+- Consequence: an operator reads one secret to set, and one command to change the database password
+
 <!-- /torve:managed -->
 
 <!-- torve:managed root index — rendered from the corpus; do not edit by hand -->
@@ -40,11 +47,11 @@ Each of these carries a managed `AGENTS.md` section listing the decisions
 and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 `<file>` and `torve spec tests S-NNNN/D-n` read the same corpus from the worktree.
 
-- `bundle/` — 14 decision(s)
-- `bundle/compose/` — 10 decision(s)
+- `bundle/` — 18 decision(s)
+- `bundle/compose/` — 11 decision(s)
 - `bundle/edge/` — 1 decision(s)
-- `bundle/hooks/` — 2 decision(s)
-- `scripts/` — 4 decision(s)
+- `bundle/hooks/` — 3 decision(s)
+- `scripts/` — 5 decision(s)
 - `tests/compose/` — 0 decision(s)
 - `tests/pin/` — 1 decision(s)
 - `tests/version/` — 1 decision(s)

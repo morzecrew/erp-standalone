@@ -98,11 +98,10 @@ decisions:
       mounted at `/run/secrets/<name>` from `${ERP_SECRETS_DIR:-/run/erp/secrets}`,
       and reads them through `*_FILE` variables; no service is given a secret as a
       plain variable. A secret read by a non-root service is owned by that service's
-      user (`owner`). Two non-root readers get two declarations, which the operator
-      sets from one value: `postgres_password` (owner 65532) and `pgbouncer_password`
-      (the pgbouncer image's user), `s3_secret_key` (65532) and `rustfs_secret_key`
-      (10001). Only `bootstrap` gets `admin_password` and `APP__ADMIN_PASSWORD_FILE`.
-      `APP__VERSION` is not set.
+      user (`owner`). Every non-root reader is 65532: the pgbouncer and rustfs images
+      read their secrets as root before dropping to their own user, so each value
+      has one declaration (S-0003/D-1, D-2). Only `bootstrap` gets `admin_password`
+      and `APP__ADMIN_PASSWORD_FILE`. `APP__VERSION` is not set.
     paths: [bundle/secrets.schema.yaml, bundle/compose/compose.yaml]
     consequence: >-
       every service starts without running as root unless its image starts as root,
@@ -112,13 +111,14 @@ decisions:
       `0400`. `envfile-exec` exits 78 on an unreadable file, so the admin password
       in the shared anchor would stop the backend and worker. The image bakes its
       own version.
+    fingerprint: eb8dd180c96de7b0/1f2407108bf0d57b
   - id: D-8
     grade: ASSUMED
     text: >-
       `valkey_password` is generated (`password`); `access_secret_key`, `refresh_pepper`
-      and `api_key_pepper` are generated `base64` of 32 bytes; `admin_password` and
-      the paired database and S3 passwords are set by the operator. `api_key_pepper`
-      and the database passwords have no `rotation_period`.
+      and `api_key_pepper` are generated `base64` of 32 bytes; `postgres_password`
+      and `rustfs_secret_key` are generated `password` of 32 (S-0003/D-1); `admin_password`
+      is set by the operator. `api_key_pepper` and `postgres_password` have no `rotation_period`.
     paths: [bundle/secrets.schema.yaml]
     consequence: >-
       `doctor` reports an unset operator secret as a failure, and nothing suggests
@@ -128,6 +128,7 @@ decisions:
       morzer's `base64` length is the count of random bytes, StdEncoding, which the
       backend's `b64decode(validate=True)` reads. Postgres reads its password file
       only at initdb.
+    fingerprint: ffdce6038f960d37/a42b45ae3c100f0f
   - id: D-9
     grade: ASSUMED
     text: >-
