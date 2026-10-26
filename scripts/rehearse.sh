@@ -2,7 +2,8 @@
 #
 # Rehearse on a workstation what bundle.yml's smoke-install and smoke-update
 # prove on the runner: install the published bundle, back up and restore,
-# update to the working tree's bundle/, roll back, probing between each.
+# rotate the database password and read through PgBouncer, update to the
+# working tree's bundle/, roll back, probing between each.
 #
 #   scripts/rehearse.sh [--from <oci ref>] [--keep]
 #
@@ -32,8 +33,8 @@ usage() {
 	cat <<EOF
 Usage: scripts/rehearse.sh [--from <oci ref>] [--keep]
 
-Rehearse a bundle's install, backup, restore, update and rollback in a
-privileged ${dind} container named ${name}, as CI's smoke jobs do.
+Rehearse a bundle's install, backup, restore, password rotation, update and
+rollback in a privileged ${dind} container named ${name}, as CI's smoke jobs do.
 It installs the --from bundle, updates it to the working tree's bundle/
 built as 0.0.0-rehearsal.<unix time>, and rolls back.
 
@@ -236,6 +237,8 @@ smoke() {
 smoke install "${box_published}" "${from_pubkey}" "${pubkey}"
 smoke probe
 smoke backup-restore
+smoke rotate-db-password
+smoke probe
 smoke update "${archive}"
 smoke probe
 smoke rollback "${box_published}" "${archive}"

@@ -81,11 +81,19 @@ secrets:
   render_to: /run/erp/secrets
   schema: secrets.schema.yaml
 operations:
-  # All three steps run on every apply and update, before services start, and
-  # all are harmless to repeat: flyway with nothing pending exits 0, bootstrap
+  # All four steps run on every apply and update, before services start, and
+  # all are harmless to repeat: db-password sets the role to the value the
+  # apply already rendered, flyway with nothing pending exits 0, bootstrap
   # keeps the catalogs and admin that exist, and schema-version only reads.
   # No step seeds data.
   migrate:
+    # First, ahead of flyway and every other step that connects: flyway and the
+    # services behind PgBouncer authenticate as `postgres` with the rendered
+    # `postgres_password`, so a rotation of that secret reaches the role only
+    # if the role carries it before anything connects with it as that.
+    - kind: hook
+      command: ["hooks/db-password"]
+      timeout: 2m
     - kind: runtime-service
       service: flyway
       timeout: 15m

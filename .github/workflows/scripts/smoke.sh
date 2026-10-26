@@ -6,6 +6,7 @@
 #   smoke.sh update <archive>               `sudo morzer update` to the archive
 #   smoke.sh probe                          the edge's loopback health port
 #   smoke.sh backup-restore                 back up, write over it, restore, check
+#   smoke.sh rotate-db-password             rotate the database password, apply, read
 #   smoke.sh rollback <published> <new>     `sudo morzer rollback` from <new> to <published>
 #   smoke.sh diagnose                       `morzer status` and the Compose logs
 #   smoke.sh free-disk                      room for the release's disk requirement
@@ -16,6 +17,9 @@
 #
 # `backup-restore` writes the marker `before` into Postgres and Valkey, backs
 # up, writes `after`, restores, and fails unless both read `before` again.
+# `rotate-db-password` writes `rotated`, rotates `postgres_password`, applies,
+# and fails unless the marker reads `rotated` through PgBouncer: the rotated
+# password reaches the role and every reader of it.
 # `rollback` passes when the rollback succeeds, or when morzer refuses it
 # (exit 9) and either the new archive declares `rollback_safe: false` or the
 # two archives produce different database schemas.
@@ -118,6 +122,31 @@ backup_restore() {
 	check_marker before
 }
 
+# The one reader a rotated password must satisfy: PgBouncer, which connects on
+# to postgres as `postgres`. The password is read from the secret inside the
+# container's shell and passed in the environment, never in an argument here.
+psql_pgbouncer() {
+	# shellcheck disable=SC2016 # expanded by the container's sh
+	sudo docker exec "$(service_container pgbouncer)" sh -c \
+		'PGPASSWORD="$(cat /run/secrets/postgres_password)" exec psql -h 127.0.0.1 -p 6432 -U postgres -d erp -v ON_ERROR_STOP=1 -tAqc "$1"' \
+		pgbouncer "$1"
+}
+
+rotate_db_password() {
+	# The marker is written once, before the rotation, and read after it: what
+	# it proves is that a connection with the new password reaches the data,
+	# not that the row was reinserted.
+	write_marker rotated
+	sudo morzer secret rotate postgres_password
+	sudo morzer --verbose apply
+
+	local database
+	database=$(psql_pgbouncer "select value from smoke_marker")
+	[ "${database}" = rotated ] \
+		|| die "smoke_marker reads '${database}' through pgbouncer, not 'rotated'"
+	echo "smoke.sh: the rotated database password reads the marker through pgbouncer"
+}
+
 # A field an archive's manifest declares, by its key: `rollback_safe`,
 # `database_schema_produces`.
 manifest_field() {
@@ -186,11 +215,12 @@ update)
 	;;
 probe) probe ;;
 backup-restore) backup_restore ;;
+rotate-db-password) rotate_db_password ;;
 rollback)
 	[ $# -eq 3 ] || die "usage: smoke.sh rollback <published archive> <new archive>"
 	rollback "$2" "$3"
 	;;
 free-disk) free_disk ;;
 diagnose) diagnose ;;
-*) die "usage: smoke.sh install|update|probe|backup-restore|rollback|diagnose|free-disk" ;;
+*) die "usage: smoke.sh install|update|probe|backup-restore|rotate-db-password|rollback|diagnose|free-disk" ;;
 esac
