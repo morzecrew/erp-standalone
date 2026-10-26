@@ -40,7 +40,7 @@ appears in `docker inspect` or in a process's environment.
   `pgbouncer` (1.26.1) on transaction pooling.
 - `valkey` (9.1), **durable** — `aof` with `noeviction` — because every
   document's `number_id` is a counter Valkey holds, not a cache entry.
-- `rustfs` (1.0.3) for attachments.
+- `rustfs` (1.0.4) for attachments.
 - `backend` and `worker` from `ghcr.io/morzecrew/erp-backend`, both through
   PgBouncer; `bootstrap` one-shot on every apply.
 - `flyway` (13.11), which mounts the migrations image read-only at
