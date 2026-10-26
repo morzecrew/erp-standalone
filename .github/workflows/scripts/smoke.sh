@@ -40,33 +40,6 @@ random() {
 	openssl rand -hex 24
 }
 
-# Whether the archive's secrets schema declares a secret by this name.
-declares() {
-	tar -I zstd -xOf "$1" --wildcards '*secrets.schema.yaml' 2>/dev/null \
-		| grep -E "^[[:space:]]*- name: $2\$" >/dev/null
-}
-
-# shortcut: a bundle published before S-0003 (the `:main` smoke-update starts
-# from until S-0003's bundle is published) generates neither infrastructure
-# pair and declares each twice, so its operator set each pair from one value.
-# morzer 0.6.0's `secret set` exits 6 while another required secret is unset,
-# which before the first `apply` is every set but the last. Drop this once
-# `:main` carries S-0003.
-set_legacy_pairs() {
-	local database storage name value status
-	database=$(random)
-	storage=$(random)
-	for name in postgres_password pgbouncer_password s3_secret_key rustfs_secret_key; do
-		case "${name}" in
-		postgres_password | pgbouncer_password) value=${database} ;;
-		*) value=${storage} ;;
-		esac
-		status=0
-		printf %s "${value}" | sudo morzer secret set "${name}" || status=$?
-		[ "${status}" -eq 0 ] || [ "${status}" -eq 6 ] || exit "${status}"
-	done
-}
-
 install_release() {
 	local archive=$1 key
 	shift
@@ -79,9 +52,6 @@ install_release() {
 	sudo morzer init --mode dev --release "${archive}" --require-signature \
 		--no-recovery-recipient --install-units=false "${keys[@]}"
 
-	if declares "${archive}" pgbouncer_password; then
-		set_legacy_pairs
-	fi
 	random | sudo morzer secret set admin_password
 
 	# --verbose: morzer prints a one-shot's output, a migration's error, only then.

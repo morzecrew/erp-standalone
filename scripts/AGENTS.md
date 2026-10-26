@@ -30,7 +30,7 @@ The committed manifest declares `compatibility.rollback_safe: true`. `scripts/pi
 - Paths: `scripts/rehearse.sh`
 - Consequence: An operator tries a bundle's install, backup, restore, update and rollback before opening a pull request, and no credential enters the container
 
-### S-0003/D-6 — `ASSUMED` (The infrastructure secrets are generated, one declaration each) — implementation: none
+### S-0003/D-6 — `ASSUMED` (The infrastructure secrets are generated, one declaration each)
 
 `smoke.sh rotate-db-password` writes the marker `rotated` into Postgres, runs `sudo morzer secret rotate postgres_password` and `sudo morzer --verbose apply`, and fails unless the marker reads `rotated` through PgBouncer: psql inside the pgbouncer container, to 127.0.0.1:6432 as `postgres`, with `PGPASSWORD` read from `/run/secrets/postgres_password` inside that container's shell. `.github/workflows/bundle.yml`'s smoke-install job runs it after backup-restore and probes again, and `scripts/rehearse.sh` runs it at the same point.
 
