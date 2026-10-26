@@ -30,7 +30,7 @@ The README says these things. The update timer is `erp-update.timer`, which sett
 - Paths: `/README.md` `/CHANGELOG.md`
 - Consequence: An operator following the README sets the dev VM's schedule, finds the installation id, and knows which failures recover by themselves
 
-### S-0003/D-7 — `ASSUMED` (The infrastructure secrets are generated, one declaration each) — implementation: none
+### S-0003/D-7 — `ASSUMED` (The infrastructure secrets are generated, one declaration each)
 
 The README's "The operator secrets" names `admin_password` as the one secret the operator sets, lists the generated ones and their owners, and drops the pairs. "Changing the database password" becomes: a backup, `sudo morzer secret rotate postgres_password`, then `sudo morzer apply`, run together. `bundle/RELEASE.md`'s "Before you install" names only `admin_password`. The CHANGELOG's Unreleased section says the infrastructure secrets are generated and that the operator sets only `admin_password`.
 
