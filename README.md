@@ -183,7 +183,11 @@ Differences from the dev VM, and why:
   ```
 
   Every backup is pushed to every configured target after it is verified, and
-  a push that fails fails the backup.
+  a push that fails fails the backup. The signed record of each operation
+  (`morzer attest`) is pushed to the same targets as it is written, so what
+  `init` and `apply` recorded before the target existed needs one
+  `sudo morzer attest push`; until then `doctor` warns that attestations are
+  only on this machine.
 
 The `MINISIGN_DEV_PUBKEY` and `MINISIGN_RELEASE_PUBKEY` values are the
 repository's public-key variables — a single base64 line beginning `RW…`, the
@@ -446,6 +450,36 @@ into an OCI layout the container's daemon loads. It probes after each step and
 runs `smoke.sh diagnose` on a failure. `--help` prints what the
 workstation needs — `docker`, `oras` logged in to ghcr, and mikefarah's `yq` v4 — and the
 public key that signed the `--from` bundle must be in `REHEARSE_PUBKEY`.
+
+## Cutting a release
+
+A release is made of component releases, so it is cut in this order:
+
+1. **Release each component.** A `vX.Y.Z` tag on erp-backend's `main`
+   publishes `erp-backend:X.Y.Z` and `erp-migrations:X.Y.Z`; one on
+   erp-frontend's `main` publishes `erp-frontend:X.Y.Z`.
+2. **Name them here, in one pull request.** In `components.yaml`, each
+   component's `version`, its `notes`, and its `rollback_safe` — `true` only
+   when its previous release can run on what this one leaves behind. In
+   `bundle/RELEASE.md`, what changed for the operator.
+3. **Tag `main`** once that pull request is merged:
+
+   ```console
+   git tag vA.B.C origin/main && git push origin vA.B.C
+   ```
+
+`release.yml` then:
+- refuses a tag that is not `vX.Y.Z` on `main`;
+- pins the versions `components.yaml` names with `scripts/pin.sh --release`,
+  in the runner (the pins are not committed);
+- builds `A.B.C` and signs it with the release key;
+- smoke-tests a fresh install and an update from the current `:stable`;
+- publishes `:A.B.C` and moves `:stable`.
+
+A version already published fails the run: a version never changes content.
+Before the first release there is no `:stable`, and only the fresh install is
+proven. Until step 1 has happened once, `components.yaml` holds the `0.0.0`
+placeholders, and a tag here fails at the pin.
 
 ## Housekeeping, and why not to prune images
 
