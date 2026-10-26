@@ -391,9 +391,9 @@ there to reinstall.
 
 `postgres_password` is one declaration and the `postgres` role holds the same
 value, so `morzer secret rotate` writes the new value and the next `morzer
-apply` sets the role from it and re-renders the files the services read. Run
-the two together: until the apply, the running containers still hold the old
-file.
+apply` sets the role from it. Run the two together: the rotation restarts
+PgBouncer, the backend and the worker with the new value while the role still
+holds the old one, so the API cannot reach the database until the apply.
 
 ```console
 # 1. A backup you can go back to.
