@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      One generated declaration per infrastructure secret
+    intent: >-
+      In `bundle/secrets.schema.yaml`, give `postgres_password` and `rustfs_secret_key`
+      `generator: {kind: password, length: 32}`, `owner: "65532"`, and the services
+      D-1 names, and delete the `pgbouncer_password` and `s3_secret_key` declarations.
+      Rewrite the header comment as D-1 says. In `bundle/compose/compose.yaml`, point
+      `pgbouncer` at `postgres_password` and the backend environment's `S3__PASSWORD_FILE`
+      at `rustfs_secret_key`, list `rustfs_secret_key` where the backend, worker and
+      bootstrap listed `s3_secret_key`, and delete the two top-level `secrets:` entries
+      (D-2). In `bundle/manifest.yaml`, change only the `pgbouncer` and `rustfs` lines
+      under `images:` to the pins D-3 gives. In `.github/workflows/scripts/smoke.sh`,
+      have `install_release` set only `admin_password` with `random | sudo morzer
+      secret set admin_password`, delete `set_secret` and its comment, and update
+      the header comment's description of `install`. Settles D-1, D-2, D-3 and D-4.
+    scope:
+      - bundle/secrets.schema.yaml
+      - bundle/compose/compose.yaml
+      - bundle/manifest.yaml
+      - .github/workflows/scripts/smoke.sh
+    acceptance:
+      - >-
+        ! grep -q -E 'pgbouncer_password|s3_secret_key' bundle/secrets.schema.yaml
+      - >-
+        ! grep -q -E 'pgbouncer_password|s3_secret_key' bundle/compose/compose.yaml
+      - >-
+        ! grep -q -E 'pgbouncer_pass|s3_secret|set_secret' .github/workflows/scripts/smoke.sh
+      - >-
+        yq -e '.secrets|map(select(.generator == null))|length == 1' bundle/secrets.schema.yaml
+      - >-
+        yq -e '.secrets|map(select(.owner != "65532"))|length == 0' bundle/secrets.schema.yaml
+      - >-
+        grep -q 'pgbouncer:1.26.1@sha256:PGBOUNCER_DIGEST' bundle/manifest.yaml
+      - >-
+        grep -q 'rustfs:1.0.4@sha256:RUSTFS_DIGEST' bundle/manifest.yaml
+    character: routine
+  - phase: 2
+    title: >-
+      Every apply sets the role's password from the secret
+    intent: >-
+      Add `bundle/hooks/db-password`, a POSIX `sh` script shaped like `bundle/hooks/schema-version`,
+      that does what D-5 says, and make it the first entry under `operations.migrate`
+      in `bundle/manifest.yaml` with a comment saying why it runs before flyway. Add
+      a `rotate-db-password` command to `.github/workflows/scripts/smoke.sh` as D-6
+      says, with its line in the header comment and the `case`. In `.github/workflows/bundle.yml`'s
+      smoke-install job, add a "Rotate the database password" step running it after
+      the backup-restore step and a probe after it. In `scripts/rehearse.sh`, run
+      `smoke rotate-db-password` and `smoke probe` after `smoke backup-restore`, and
+      add the step to its header comment. Settles D-5 and D-6.
+    scope:
+      - bundle/hooks/db-password
+      - bundle/manifest.yaml
+      - .github/workflows/scripts/smoke.sh
+      - .github/workflows/bundle.yml
+      - scripts/rehearse.sh
+    acceptance:
+      - test -x bundle/hooks/db-password
+      - >-
+        yq -e '.operations.migrate[0].command[0] == "hooks/db-password"' bundle/manifest.yaml
+      - >-
+        grep -q 'log_min_duration_statement' bundle/hooks/db-password
+      - >-
+        grep -q 'smoke.sh rotate-db-password' .github/workflows/bundle.yml
+      - >-
+        grep -q 'smoke rotate-db-password' scripts/rehearse.sh
+    character: routine
+  - phase: 3
+    title: >-
+      The README, RELEASE.md and CHANGELOG name one operator secret
+    intent: >-
+      Rewrite the README's "The operator secrets" and "Changing the database password"
+      sections as D-7 says, keeping their headings, and update every other line of
+      the README that names a pair or `\password` (the install steps' "Set the operator
+      secrets" comments among them). Update `bundle/RELEASE.md`'s "Before you install"
+      and the CHANGELOG's Unreleased bullet about secrets. Settles D-7.
+    scope: [/README.md, bundle/RELEASE.md, /CHANGELOG.md]
+    acceptance:
+      - >-
+        ! grep -q -E 'pgbouncer_password|s3_secret_key|password postgres' README.md
+      - >-
+        ! grep -q -E 'pgbouncer_password|s3_secret_key' bundle/RELEASE.md CHANGELOG.md
+      - >-
+        grep -q 'secret rotate postgres_password' README.md
+    character: routine
