@@ -86,3 +86,57 @@ amendments:
     md: >-
       S-0002 proves backup, restore and rollback on every bundle, and starts `release.yml`'s
       update test from `:stable`, the path a customer takes, rather than from `:main`.
+  - id: A-5
+    at: '2026-10-26T11:36:33Z'
+    title: One declaration per secret value (S-0003)
+    md: |-
+      S-0003 settles the first question again. platform-images S-0003 has the pgbouncer and rustfs images read their `_FILE` secrets as root and drop to 70 and 10001, so one file owned by 65532 reaches every reader. The pairs `postgres_password`/`pgbouncer_password` and `s3_secret_key`/`rustfs_secret_key` become one declaration each, and D-7 no longer names them.
+    changes:
+      - subject: D-7
+        field: text
+        before: >-
+          Secrets reach containers only as files: each service lists the secrets it
+          reads, mounted at `/run/secrets/<name>` from `${ERP_SECRETS_DIR:-/run/erp/secrets}`,
+          and reads them through `*_FILE` variables; no service is given a secret
+          as a plain variable. A secret read by a non-root service is owned by that
+          service's user (`owner`). Two non-root readers get two declarations, which
+          the operator sets from one value: `postgres_password` (owner 65532) and
+          `pgbouncer_password` (the pgbouncer image's user), `s3_secret_key` (65532)
+          and `rustfs_secret_key` (10001). Only `bootstrap` gets `admin_password`
+          and `APP__ADMIN_PASSWORD_FILE`. `APP__VERSION` is not set.
+        after: >-
+          Secrets reach containers only as files: each service lists the secrets it
+          reads, mounted at `/run/secrets/<name>` from `${ERP_SECRETS_DIR:-/run/erp/secrets}`,
+          and reads them through `*_FILE` variables; no service is given a secret
+          as a plain variable. A secret read by a non-root service is owned by that
+          service's user (`owner`). Every non-root reader is 65532: the pgbouncer
+          and rustfs images read their secrets as root before dropping to their own
+          user, so each value has one declaration (S-0003/D-1, D-2). Only `bootstrap`
+          gets `admin_password` and `APP__ADMIN_PASSWORD_FILE`. `APP__VERSION` is
+          not set.
+      - subject: D-7
+        field: fingerprint
+        after: eb8dd180c96de7b0/1f2407108bf0d57b
+  - id: A-6
+    at: '2026-10-26T11:36:33Z'
+    title: >-
+      The infrastructure secrets are generated (S-0003)
+    md: |-
+      With one declaration per value, the database password and the RustFS key take a generator like every other infrastructure secret, and `admin_password` is the only one the operator sets.
+    changes:
+      - subject: D-8
+        field: text
+        before: >-
+          `valkey_password` is generated (`password`); `access_secret_key`, `refresh_pepper`
+          and `api_key_pepper` are generated `base64` of 32 bytes; `admin_password`
+          and the paired database and S3 passwords are set by the operator. `api_key_pepper`
+          and the database passwords have no `rotation_period`.
+        after: >-
+          `valkey_password` is generated (`password`); `access_secret_key`, `refresh_pepper`
+          and `api_key_pepper` are generated `base64` of 32 bytes; `postgres_password`
+          and `rustfs_secret_key` are generated `password` of 32 (S-0003/D-1); `admin_password`
+          is set by the operator. `api_key_pepper` and `postgres_password` have no
+          `rotation_period`.
+      - subject: D-8
+        field: fingerprint
+        after: ffdce6038f960d37/a42b45ae3c100f0f
