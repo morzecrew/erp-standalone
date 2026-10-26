@@ -109,6 +109,9 @@ sudo morzer config set \
   update.auto_apply=true \
   update.schedule='*:0/15' \
   backup.before_update=false
+
+# 6. morzer 0.6.0 enables the timers but does not start them (morzer#139).
+sudo systemctl start erp-update.timer erp-backup.timer
 ```
 
 - `--mode dev` marks the machine as a sandbox. It is fixed at creation and
@@ -136,10 +139,15 @@ sudo morzer config set \
   whatever its channel offers, schema changes included.
 - `backup.before_update=false` is the dev VM's choice: it skips the pre-update
   backup, which a sandbox does not need and which costs disk on every merge.
+  On morzer 0.6.0 it is also what lets a tick install at all: with the
+  pre-update backup on, every unattended tick fails at its backup step
+  ([morzer#134](https://github.com/morzecrew/morzer/issues/134)).
 
-A manual tick is `sudo morzer update --unattended`; `sudo morzer update --check`
-reports whether the channel is ahead of what is installed without installing
-anything.
+A manual tick is `sudo morzer update --unattended`.
+`sudo morzer update --check oci://ghcr.io/morzecrew/erp-standalone` reports
+whether a newer version is published without installing anything. The bare
+`--check` refuses until the first `update` from a ref, because `init` records no
+release source ([morzer#138](https://github.com/morzecrew/morzer/issues/138)).
 
 ## Install a customer VM (follows `:stable`)
 
@@ -163,6 +171,7 @@ sudo morzer doctor
 sudo morzer config set \
   update.check=true \
   update.channel=oci://ghcr.io/morzecrew/erp-standalone:stable
+sudo systemctl start erp-update.timer erp-backup.timer   # morzer#139
 ```
 
 Differences from the dev VM, and why:
@@ -173,14 +182,23 @@ Differences from the dev VM, and why:
 - **`update.auto_apply` is left off**, so the timer only stages and reports.
   Installing is a person's decision, and `morzer update` (below) takes a
   pre-update backup by default. Leave `backup.before_update` at its default of
-  `true`.
+  `true`, and `update.auto_apply` off until morzer#134 is fixed.
 - **Configure a backup target.** A backup on the machine whose disk is about
-  to fail is not a backup:
+  to fail is not a backup. An `s3://` or `ssh://` target reads its credentials
+  from one secret holding a small YAML document:
 
   ```console
-  sudo morzer backup target add <url>
+  sudo morzer secret set backup_s3
+  sudo morzer backup target add s3://<bucket>/erp --credentials backup_s3
   sudo morzer backup target list
   ```
+
+  For `s3://` the document holds `access_key_id`, `secret_access_key` and, for
+  a store that is not AWS, `endpoint`. A plaintext endpoint has to be spelled
+  `http://`. For `ssh://user@host/absolute/path` it holds `private_key` and the
+  pinned `known_hosts` line. The bucket or directory must already exist. See
+  morzer's
+  [backup target URLs](https://morzecrew.github.io/morzer/reference/backup-targets/).
 
   Every backup is pushed to every configured target after it is verified, and
   a push that fails fails the backup. The signed record of each operation
@@ -239,11 +257,16 @@ not a timer.
 ## Updating
 
 ```console
-sudo morzer update --check        # is the channel ahead of what is installed?
-sudo morzer update                # follow the channel and install it
-sudo morzer update <archive>      # install a specific bundle file
-sudo morzer update --to <version> # install a version already in the release store
+sudo morzer update --check oci://ghcr.io/morzecrew/erp-standalone  # a newer version?
+sudo morzer update --stage          # fetch and verify what the channel points at
+sudo morzer update --to <version>   # install a version already in the release store
+sudo morzer update oci://ghcr.io/morzecrew/erp-standalone:<version>  # a published one
+sudo morzer update <archive>        # install a specific bundle file
 ```
+
+`morzer update` with no argument follows no channel: it refuses with `no
+release was given`. The channel is followed by `--stage`, which leaves the
+release staged for `--to`, and by the timer's `--unattended` tick.
 
 An update verifies the bundle, checks it against the compatibility the
 manifest declares, takes a pre-update backup (unless `backup.before_update`
@@ -371,9 +394,12 @@ sudo morzer backup fetch <backup-id>
 sudo morzer restore --backup <backup-id> --force --confirm <installation-id> \
   --identity ./erp-recovery.key
 
-# 4. The systemd units and this machine's signing key, which import does not
-#    write. Repair asks for the recovery recipient again: the same public key.
+# 4. The systemd units, and the record of this machine's signing key: import
+#    installs no units and writes a key it does not record (morzer#135).
+#    Repair needs the product and the recovery recipient again, the same public
+#    key; the bare `init --repair` doctor prints refuses.
 sudo morzer --product erp init --repair --recovery-recipient "$OFFLINE_AGE_RECIPIENT"
+sudo systemctl start erp-update.timer erp-backup.timer   # morzer#139
 sudo morzer doctor
 
 # 5. The key leaves the machine again.
