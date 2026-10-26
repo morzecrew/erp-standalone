@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0003
+title: >-
+  The infrastructure secrets are generated, one declaration each
+kind: design
+change:
+  type: feat
+  scope: bundle
+status: draft
+implementation: none
+depends_on: [S-0001, S-0002]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  The database password and the RustFS key become one generated secret each, owned by the backend's user, because the pgbouncer and rustfs images now read a secret of any owner as root before dropping to their own user (platform-images S-0003). `pgbouncer_password` and the `s3_secret_key` alias go away.
+
+  The operator types one secret, the first administrator's password. A migrate hook sets the `postgres` role's password from the rendered secret on every apply, so `morzer secret rotate postgres_password` followed by `apply` is the whole password change.
+motivation: |-
+  An install today asks the operator for five secrets: the database password twice, the S3 key twice, and the administrator's password. The first four are infrastructure that morzer could generate, and typing them invites a pair that drifts apart. They were declared twice only because morzer gives a rendered file one owner and the backend (65532), PgBouncer (70) and RustFS (10001) each needed their own (S-0001/D-7, the answer to S-0001's first question). `s3_secret_key` is the RustFS key under another name.
+
+  platform-images S-0003 removes that constraint: both images start as root, read their `_FILE` secret whoever owns it, and drop to 70 and 10001 before their server starts.
+current_state: |-
+  `bundle/secrets.schema.yaml` declares nine secrets. Four have a generator. `postgres_password` (owner 65532), `pgbouncer_password` (70), `s3_secret_key` (65532), `rustfs_secret_key` (10001) and `admin_password` (65532) have none, so `init` leaves them to the operator. `smoke.sh install` sets all five and tolerates morzer 0.6.0's exit 6 from every `secret set` but the last.
+
+  The `postgres` role's password is set once, by the postgres image's initdb from `POSTGRES_PASSWORD_FILE`. Changing it is a README procedure: set both declarations, then `\password postgres` in psql, then `apply`.
+
+  The manifest pins `pgbouncer:1.26.1` and `rustfs:1.0.4` at digests built before platform-images S-0003.
+goals: |-
+  - `init` generates every infrastructure secret, and the operator sets only `admin_password`.
+  - One declaration per secret value: no pairs, no aliases.
+  - A rotated database password reaches the role through `apply`, without a person typing it.
+  - An installation of an earlier dev build updates and rolls back across this change without a person.
+non_goals: |-
+  - Generating `admin_password`. It is a person's credential, and morzer 0.6.0 prints no generated value back.
+  - A separate application role for the backend. The backend, PgBouncer and flyway keep logging in as `postgres`.
+  - Changing which uid any service runs as.
+design:
+  - key: phases
+    md: |-
+      | Phase | Owns | Waits on |
+      |---|---|---|
+      | 1 | the secrets schema, the compose file, the two image pins, `smoke.sh install` | — |
+      | 2 | `hooks/db-password` and its migrate step, `smoke.sh rotate-db-password`, the workflow and rehearsal steps | 1 |
+      | 3 | the README, `RELEASE.md`, the CHANGELOG | 2 |
+
+      Each phase edits a file the next one does, so the planner runs them one at a time.
+  - key: upgrade
+    md: |-
+      The two surviving names keep their values on an existing installation. `postgres_password` already held the database password, and `rustfs_secret_key` already held the RustFS key, so after an update PgBouncer and the backend read the same values from the declarations that remain. A generator added to a secret that has a value leaves the value alone. `pgbouncer_password` and `s3_secret_key` stay in the secret state, undeclared, so a rollback to an earlier build still finds them.
+
+      CI proves both directions on every pull request: smoke-update installs the published `:main`, which still has the pairs, updates to the new bundle and rolls back.
+  - key: db-password
+    md: |-
+      `hooks/db-password` is the first migrate step, ahead of flyway, which logs in with the password directly.
+
+      1. It finds the erp project's postgres container, stopped or running. With none, it reports a skip: initdb will take the password from the file.
+      2. A stopped container is started, and the hook waits for `pg_isready`.
+      3. Over the container's local socket, psql runs `SET log_statement = 'none'`, `SET log_min_duration_statement = -1` and `SET log_min_error_statement = panic`. Then `\set pw` reads `/run/secrets/postgres_password` through a backtick inside the container, and `ALTER ROLE postgres PASSWORD :'pw'` runs.
+
+      The value is never in a command line and never in the server's log. Postgres logs statements slower than 200 ms by default here, which a slow ALTER on a loaded machine could be.
+tests: |-
+  - `.torve` gates as today. `edge-smoke` renders every secret the schema declares, so it follows the schema without a change.
+  - CI smoke-install: a fresh install with only `admin_password` set, then backup-restore, then `rotate-db-password`, which rotates the password, applies, and reads the markers back through PgBouncer.
+  - CI smoke-update: from the published `:main`, which has the pairs, to the new bundle and back.
+docs: >-
+  The README's operator-secrets section names one operator secret and says which secrets
+  are generated. "Changing the database password" becomes backup, `secret rotate`,
+  `apply`. RELEASE.md's "Before you install" and the CHANGELOG follow.
+out_of_scope: ''
+risks: |-
+  - Between `secret rotate postgres_password` and the `apply` after it, the restarted PgBouncer, backend and worker hold the new value while the role still has the old one, so the API is down for that minute. The README says to run them together.
+  - The hook reads the secret through the container's bind mount. A rotation restarts postgres, which mounts the new file. A new value rendered without a restart would leave the hook setting the old one, and no path that changes the value does that.
+alternatives:
+  - option: >-
+      Keep the pairs, and have `smoke.sh` and the README generate one value for each
+      pair with `openssl rand`.
+    rejected_because: >-
+      The operator still runs four commands for infrastructure, and `doctor` still
+      cannot tell a drifted pair from a correct one.
+  - option: >-
+      Rotate the role's password by hand with `\password`, as the README does today.
+    rejected_because: >-
+      A generated password is one nobody knows, so typing it means reading it out
+      of `/run/erp/secrets` first. The hook does the same thing without a person.

@@ -1,0 +1,134 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `bundle/secrets.schema.yaml` declares `postgres_password` once, with `generator:
+      {kind: password, length: 32}`, `owner: "65532"` and `services: [postgres, pgbouncer,
+      backend, worker]`, and `rustfs_secret_key` once, with the same generator, `owner:
+      "65532"` and `services: [rustfs, backend, worker]`. `pgbouncer_password` and
+      `s3_secret_key` are no longer declared. Neither has a `rotation_period`. The
+      header comment says the pgbouncer and rustfs images read their secrets as root,
+      so every non-root reader here is 65532, and `admin_password` is the only secret
+      without a generator.
+    paths: [bundle/secrets.schema.yaml]
+    consequence: >-
+      `init` generates every infrastructure secret, and one value has one declaration
+    rationale: >-
+      platform-images S-0003 has both images read a `_FILE` secret of any owner as
+      root, so the backend's user can own the one file. morzer's password generator
+      excludes characters that need quoting, so the value is safe in PgBouncer's userlist,
+      whose writer refuses a double quote. A 48-character RustFS key served signed
+      requests in the lost-machine rehearsal of 2026-10-26, so 32 is within what RustFS
+      takes.
+    cites: [S-0001/D-7]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      In `bundle/compose/compose.yaml`, `pgbouncer` reads `PGBOUNCER_DB_PASSWORD_FILE:
+      /run/secrets/postgres_password` and lists `postgres_password`. The backend environment's
+      `S3__PASSWORD_FILE` is `/run/secrets/rustfs_secret_key`, and the backend, worker
+      and bootstrap list `rustfs_secret_key` where they listed `s3_secret_key`. The
+      `pgbouncer_password` and `s3_secret_key` entries under top-level `secrets:`
+      go. Neither `pgbouncer` nor `rustfs` sets `user:`.
+    paths: [bundle/compose/compose.yaml]
+    consequence: >-
+      every reader of a value names the one declaration that holds it
+    rationale: >-
+      A `user:` on either service would skip the image's root start and leave the
+      65532-owned file unreadable.
+    cites: [S-0001/D-7]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `bundle/manifest.yaml` pins `pgbouncer` and `rustfs` to the platform-images
+      S-0003 builds of `1.26.1` and `1.0.4`, as `repo:tag@sha256:` with the digest
+      the tag resolves to once that document's pull request is published.
+    paths: [bundle/manifest.yaml]
+    consequence: >-
+      the images that read a secret of any owner are the ones the bundle runs
+    rationale: >-
+      The earlier builds start as 70 and 10001 and cannot read a file 65532 owns,
+      so D-1 and D-2 need these builds and no older one.
+    cites: [S-0001/D-13]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `smoke.sh install` sets only `admin_password`, from `random`. The `set_secret`
+      shortcut that tolerated exit 6 goes, and `secret set` runs directly, failing
+      the step on any non-zero exit.
+    paths: [.github/workflows/scripts/smoke.sh]
+    consequence: >-
+      CI installs the way an operator now does, and a `secret set` failure is a red
+      step
+    rationale: >-
+      morzer 0.6.0 exits 6 from `secret set` while another required secret is unset.
+      With every other secret generated at `init`, nothing is unset when the only
+      operator secret is set.
+    cites: [S-0001/D-16]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      `bundle/hooks/db-password` is the first migrate step in `bundle/manifest.yaml`,
+      `{kind: hook, command: [hooks/db-password], timeout: 2m}`, ahead of flyway.
+      It finds the postgres container of the `${ERP_COMPOSE_PROJECT:-erp}` project
+      by Compose's labels, stopped or running. With none, it reports a skip and exits
+      0. A stopped one is started, and the hook waits up to 60 s for `pg_isready`.
+      It then pipes a script to `psql -U postgres -d postgres -v ON_ERROR_STOP=1`
+      in the container: `SET log_statement = 'none'`, `SET log_min_duration_statement
+      = -1`, `SET log_min_error_statement = panic`, then `\set pw` with a backtick
+      `cat /run/secrets/postgres_password`, and then `ALTER ROLE postgres PASSWORD
+      :'pw'`. Under `ERP_DRY_RUN=1` it reports what it would do and changes nothing.
+      It writes its result to `ERP_RESULT_FD`, as `hooks/schema-version` does.
+    paths: [bundle/hooks/db-password, bundle/manifest.yaml]
+    consequence: >-
+      every apply leaves the role's password equal to the rendered secret, so a rotation
+      takes effect at the next apply
+    rationale: >-
+      initdb reads `POSTGRES_PASSWORD_FILE` once, and a generated password is one
+      nobody can type into `\password`. The local socket admits `psql -U postgres`
+      without a password, as `hooks/schema-version` already relies on. The value enters
+      psql through a backtick inside the container, never through an argument, and
+      the session's settings keep the ALTER out of the server's log, which records
+      any statement slower than 200 ms.
+    cites: [S-0002/D-3]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `smoke.sh rotate-db-password` writes the marker `rotated` into Postgres, runs
+      `sudo morzer secret rotate postgres_password` and `sudo morzer --verbose apply`,
+      and fails unless the marker reads `rotated` through PgBouncer: psql inside the
+      pgbouncer container, to 127.0.0.1:6432 as `postgres`, with `PGPASSWORD` read
+      from `/run/secrets/postgres_password` inside that container's shell. `.github/workflows/bundle.yml`'s
+      smoke-install job runs it after backup-restore and probes again, and `scripts/rehearse.sh`
+      runs it at the same point.
+    paths:
+      - .github/workflows/scripts/smoke.sh
+      - .github/workflows/bundle.yml
+      - scripts/rehearse.sh
+    consequence: >-
+      every bundle proves that a rotated database password reaches the role and every
+      reader
+    rationale: >-
+      The rotation is the one path where the role and the file can disagree, and it
+      is the one D-5 exists for. A login through PgBouncer with the new value proves
+      both hops the backend uses; the backend's `/health` answers without touching
+      the database.
+    cites: [S-0002/D-5, S-0002/D-7]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The README's "The operator secrets" names `admin_password` as the one secret
+      the operator sets, lists the generated ones and their owners, and drops the
+      pairs. "Changing the database password" becomes: a backup, `sudo morzer secret
+      rotate postgres_password`, then `sudo morzer apply`, run together. `bundle/RELEASE.md`'s
+      "Before you install" names only `admin_password`. The CHANGELOG's Unreleased
+      section says the infrastructure secrets are generated and that the operator
+      sets only `admin_password`.
+    paths: [/README.md, bundle/RELEASE.md, /CHANGELOG.md]
+    consequence: >-
+      an operator reads one secret to set, and one command to change the database
+      password
+    rationale: >-
+      The README's pairs and `\password` steps describe the schema D-1 replaces.
+    cites: [S-0001/D-7]
