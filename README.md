@@ -338,6 +338,59 @@ test. It is destructive and needs both `--force` and the installation id typed
 as `--confirm`; `morzer status` prints the installation id. Anything written
 since the backup is gone, not left beside the restored data.
 
+## Recovering a lost machine
+
+When the VM itself is gone — a dead disk, a deleted VM — two things rebuild
+it: the offline recovery key and a backup on a target. Every backup carries
+the installation's identity (its record, the encrypted secret state, and who
+can decrypt it) encrypted to the recovery key alone, so nothing else has to be
+kept by hand. A machine installed with `--no-recovery-recipient`, or one
+without a backup target, cannot be recovered this way.
+
+Make the key on a workstation, never on the VM, and keep the private half in a
+password manager:
+
+```console
+age-keygen -o erp-recovery.key   # the private half
+age-keygen -y erp-recovery.key   # the public half, init's --recovery-recipient
+```
+
+On the replacement, with Docker, morzer, sops and age installed and the key
+copied over:
+
+```console
+# 1. The identity, from the newest backup on the target. For an s3:// or ssh://
+#    target, add --credentials-file with the target's credential document.
+sudo morzer --product erp installation import --from-backup \
+  --target <target-url> --identity ./erp-recovery.key
+
+# 2. The release that was running: import prints its version.
+printf %s "$GHCR_TOKEN" | sudo docker login ghcr.io -u <github-user> --password-stdin
+sudo morzer update oci://ghcr.io/morzecrew/erp-standalone:<version>
+
+# 3. The data. This machine's new key cannot open the old backups; the
+#    recovery key can.
+sudo morzer backup list --remote
+sudo morzer backup fetch <backup-id>
+sudo morzer restore --backup <backup-id> --force --confirm <installation-id> \
+  --identity ./erp-recovery.key
+
+# 4. The systemd units and this machine's signing key, which import does not
+#    write. Repair asks for the recovery recipient again: the same public key.
+sudo morzer --product erp init --repair --recovery-recipient "$OFFLINE_AGE_RECIPIENT"
+sudo morzer doctor
+
+# 5. The key leaves the machine again.
+shred -u ./erp-recovery.key
+```
+
+Import keeps the installation id, which is why the old machine's backups
+restore without `--allow-cross-installation`, and it revokes the old machine's
+key. If any part of the old machine still runs, shut it down: two hosts with
+one installation id confuse every backup either takes. Release versions are
+never pruned from the registry, so the version a customer VM ran is always
+there to reinstall.
+
 ## Changing the database password
 
 The `postgres` role's password is one value in two declarations and one row in
