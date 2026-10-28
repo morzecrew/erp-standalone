@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-28T16:33:49Z'
+    title: >-
+      S-0004 has landed; the phases no longer wait on it
+    md: >-
+      `after: [S-0004]` kept S-0005's first phase off the files S-0004 was still changing.
+      S-0004 has since landed and merged (#25), so the edge has nothing left to order.
+      The planner also counted S-0004's review records (T-0029 to T-0031) as tasks
+      to wait on, and those never land, so T-0032 could never start. The edge goes.
+      No row changes.

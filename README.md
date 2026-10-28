@@ -471,6 +471,14 @@ A runner, self-hosted or GitHub-hosted, needs:
   volume, and `scripts/rehearse.sh` uses the same rig on a workstation.
 - **Room for one rig:** the release's 20 GiB preflight under `/var/lib/erp`
   plus the bundle's images, all held by that rig's container and volume.
+- **No `sudo` for its user.** Jobs install their tools in a job container, in
+  a rig, or under `$RUNNER_TEMP`, and each container job hands the workspace
+  back to the runner's user when it ends.
+- **A proxy containers can reach, if it has one.** The runner hands its
+  `http(s)_proxy` to every job container, where `127.0.0.1` is the container's
+  own loopback. Point it at an address containers reach, such as the Docker
+  bridge's `172.17.0.1`, with the proxy listening there. `rig.sh` passes a
+  non-loopback proxy into each rig.
 
 ## Cutting a release
 

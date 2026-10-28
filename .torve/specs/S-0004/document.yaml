@@ -7,7 +7,7 @@ change:
   type: ci
   scope: workflows
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0001, S-0002, S-0003]
 informed_by: []
 supersedes: []
