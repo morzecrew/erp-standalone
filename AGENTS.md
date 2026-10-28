@@ -37,6 +37,13 @@ The README's "The operator secrets" names `admin_password` as the one secret the
 - Paths: `/README.md` `bundle/RELEASE.md` `/CHANGELOG.md`
 - Consequence: an operator reads one secret to set, and one command to change the database password
 
+### S-0004/D-9 — `ASSUMED` (CI runs on the org's runners and leaves them clean) — implementation: none
+
+The README's CI section names `RUNS_ON` and its fallback, and what a runner needs: amd64, a Docker that allows privileged containers, and room for one rig, the release's 20 GiB preflight under `/var/lib/erp` and the bundle's images.
+
+- Paths: `/README.md`
+- Consequence: whoever adds or replaces a runner knows what it must offer without reading the workflows
+
 <!-- /torve:managed -->
 
 <!-- torve:managed root index — rendered from the corpus; do not edit by hand -->
@@ -51,7 +58,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `bundle/compose/` — 11 decision(s)
 - `bundle/edge/` — 1 decision(s)
 - `bundle/hooks/` — 3 decision(s)
-- `scripts/` — 5 decision(s)
+- `scripts/` — 7 decision(s)
 - `tests/compose/` — 0 decision(s)
 - `tests/pin/` — 1 decision(s)
 - `tests/version/` — 1 decision(s)

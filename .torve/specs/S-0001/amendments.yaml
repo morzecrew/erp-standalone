@@ -89,8 +89,6 @@ amendments:
   - id: A-5
     at: '2026-10-26T11:36:33Z'
     title: One declaration per secret value (S-0003)
-    md: |-
-      S-0003 settles the first question again. platform-images S-0003 has the pgbouncer and rustfs images read their `_FILE` secrets as root and drop to 70 and 10001, so one file owned by 65532 reaches every reader. The pairs `postgres_password`/`pgbouncer_password` and `s3_secret_key`/`rustfs_secret_key` become one declaration each, and D-7 no longer names them.
     changes:
       - subject: D-7
         field: text
@@ -117,12 +115,16 @@ amendments:
       - subject: D-7
         field: fingerprint
         after: eb8dd180c96de7b0/1f2407108bf0d57b
+    md: >-
+      S-0003 settles the first question again. platform-images S-0003 has the pgbouncer
+      and rustfs images read their `_FILE` secrets as root and drop to 70 and 10001,
+      so one file owned by 65532 reaches every reader. The pairs `postgres_password`/`pgbouncer_password`
+      and `s3_secret_key`/`rustfs_secret_key` become one declaration each, and D-7
+      no longer names them.
   - id: A-6
     at: '2026-10-26T11:36:33Z'
     title: >-
       The infrastructure secrets are generated (S-0003)
-    md: |-
-      With one declaration per value, the database password and the RustFS key take a generator like every other infrastructure secret, and `admin_password` is the only one the operator sets.
     changes:
       - subject: D-8
         field: text
@@ -140,3 +142,42 @@ amendments:
       - subject: D-8
         field: fingerprint
         after: ffdce6038f960d37/a42b45ae3c100f0f
+    md: >-
+      With one declaration per value, the database password and the RustFS key take
+      a generator like every other infrastructure secret, and `admin_password` is
+      the only one the operator sets.
+  - id: A-7
+    at: '2026-10-28T15:00:33Z'
+    title: Smoke tests run inside a rig of their own
+    changes:
+      - subject: D-19
+        field: text
+        before: >-
+          A bundle is smoke-tested on the runner before it is published, in jobs with
+          `packages: read`: a fresh `sudo morzer init` and `apply`, then a backup
+          and a restore (S-0002/D-5); and, when the caller's channel tag exists (`:stable`
+          for `release.yml`, `:main` otherwise, S-0002/D-6), an `init` from that published
+          bundle, `morzer update` to the new archive, and `morzer rollback` back to
+          it or its refusal for the right reason. Each probes the loopback health
+          port. Publishing is a separate job with `packages: write` that needs the
+          smoke jobs.
+        after: >-
+          A bundle is smoke-tested before it is published, in jobs with `packages:
+          read`, each inside a rig of its own on the runner (S-0004/D-5): a fresh
+          `sudo morzer init` and `apply`, then a backup and a restore (S-0002/D-5);
+          and, when the caller's channel tag exists (`:stable` for `release.yml`,
+          `:main` otherwise, S-0002/D-6), an `init` from that published bundle, `morzer
+          update` to the new archive, and `morzer rollback` back to it or its refusal
+          for the right reason. Each probes the rig's loopback health port. Publishing
+          is a separate job with `packages: write` that needs the smoke jobs.
+      - subject: D-19
+        field: fingerprint
+        before: 9d40300eab58079b/a2ae58da4858baa1
+        after: f1e7e3a0607a1d35/a2ae58da4858baa1
+    md: >-
+      S-0004 moves CI to the org's self-hosted runners, which are shared with other
+      repositories and outlive a job, so a smoke test can no longer install the ERP
+      on the runner itself. Each smoke job now runs the same operations inside a privileged
+      `docker:29.7.2-dind` rig of its own, removed with its volume when the job ends
+      (S-0004/D-5). The checks are unchanged. Only where they run moves, and the probed
+      loopback is the rig's.
