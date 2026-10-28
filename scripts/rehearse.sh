@@ -123,8 +123,8 @@ oras pull "${from}" -o "${work}/published" >/dev/null
 published=$(find "${work}/published" -maxdepth 1 -name '*.tar.zst' -print -quit)
 [ -n "${published}" ] || die "${from} holds no bundle archive"
 
-# rig.sh's start refuses a name already taken and removes both the container
-# and its volume once the daemon answers and its packages are in.
+# rig.sh's start refuses a name already taken, and removes the container and
+# its volume itself when the daemon never answers or its packages fail.
 echo "rehearse.sh: starting ${name}"
 bash "${rig}" start "${name}"
 started=true

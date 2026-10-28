@@ -32,6 +32,12 @@ env:
   ARTIFACT_TYPE: application/vnd.morzer.release.bundle.v1
   LAYER_TYPE: application/vnd.morzer.release.bundle.v1.tar+zstd
 
+# A job container runs `run:` under sh unless told otherwise; the steps are
+# bash, as GitHub-hosted runners ran them (`bash -e {0}`, no pipefail).
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   publish:
     runs-on: ${{ vars.RUNS_ON || 'ubuntu-24.04' }}

@@ -10,6 +10,12 @@ on:
 
 permissions: {}
 
+# A job container runs `run:` under sh unless told otherwise; the steps are
+# bash, as GitHub-hosted runners ran them (`bash -e {0}`, no pipefail).
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   retention:
     runs-on: ${{ vars.RUNS_ON || 'ubuntu-24.04' }}
