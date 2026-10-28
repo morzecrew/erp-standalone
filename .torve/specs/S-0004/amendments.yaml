@@ -95,3 +95,43 @@ amendments:
       every job container, where `127.0.0.1` is the container's own, so it must name
       an address containers reach, such as the Docker bridge's. morze-nsk-2's xray
       inbound on loopback broke checkout until it also listened on `172.17.0.1`.
+  - id: A-4
+    at: '2026-10-28T19:30:59Z'
+    title: container jobs trust their workspace
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          Every job but `smoke-install` and `smoke-update` runs in the job container
+          `ubuntu:24.04@sha256:24737cef17f4e22b1977df7d9a05e77c4e28b7da5b8911f8d8ccda136bf3573c`
+          as root, under `bash -e {0}`, and ends with an `always()` step that gives
+          the workspace and `$RUNNER_TEMP` back to the runner's user. Its first step
+          installs git, curl, ca-certificates and jq from Ubuntu's archive, and `install-tools.sh`
+          installs the job's pinned tools inside the container, calling `sudo` only
+          when it is not root. A step on the host installs a tool under `BIN_DIR`,
+          a directory the job owns, without `sudo`.
+        after: >-
+          Every job but `smoke-install` and `smoke-update` runs in the job container
+          `ubuntu:24.04@sha256:24737cef17f4e22b1977df7d9a05e77c4e28b7da5b8911f8d8ccda136bf3573c`
+          as root, under `bash -e {0}`, and ends with an `always()` step that gives
+          the workspace and `$RUNNER_TEMP` back to the runner's user. Its first step
+          installs git, curl, ca-certificates and jq from Ubuntu's archive, and `install-tools.sh`
+          installs the job's pinned tools inside the container, calling `sudo` only
+          when it is not root. A job that checks out the repository then adds the
+          workspace to git's global `safe.directory`, since the workspace outlives
+          the job owned by the runner's user. A step on the host installs a tool under
+          `BIN_DIR`, a directory the job owns, without `sudo`.
+      - subject: D-2
+        field: fingerprint
+        before: 8f00a37f45c2d9e1/05ec8370c47850d4
+        after: 93ac34b07b47d411/05ec8370c47850d4
+    md: >-
+      The first `main` run on the self-hosted runners failed at its pin step with
+      `fatal: not in a git directory`. The workspace outlives the job owned by the
+      runner's user, as A-1's hand-back leaves it, and git refuses a repository another
+      user owns to the container's root. `actions/checkout` registers `safe.directory`
+      only under a temporary home, so later steps lose it. The container jobs that
+      check out (`main`'s pin, `bundle`'s build, `publish`, and `release`'s guard)
+      now add the workspace to git's global `safe.directory` right after checkout.
+      `scripts/version.sh` reads git with its errors silenced, so without this the
+      build would have stamped a wrong version rather than failed.

@@ -52,6 +52,11 @@ jobs:
           ref: main
           persist-credentials: false
 
+      # The workspace outlives the job on a self-hosted runner, owned by the
+      # runner's user, and git refuses it to this container's root.
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+
       - name: Install tools
         run: bash .github/workflows/scripts/install-tools.sh oras yq
 
