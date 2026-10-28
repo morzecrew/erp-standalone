@@ -56,9 +56,19 @@ start() {
 		die "volume ${name} exists; remove it with: docker volume rm ${name}"
 	fi
 
+	# The runner's proxy reaches the rig's daemon and its commands, unless it is
+	# a loopback address: that is the host's, which a rig cannot reach.
+	local var proxy=()
+	for var in http_proxy https_proxy no_proxy HTTP_PROXY HTTPS_PROXY NO_PROXY; do
+		case "${!var:-}" in
+		"" | *://127.* | *://localhost* | *://\[::1\]*) ;;
+		*) proxy+=(-e "${var}=${!var}") ;;
+		esac
+	done
+
 	# The volume of the same name holds /var/lib/docker, so a rig's images die
 	# with the rig, and no second rig shares them.
-	docker run -d --privileged --name "${name}" \
+	docker run -d --privileged --name "${name}" ${proxy[@]+"${proxy[@]}"} \
 		-v "${name}:/var/lib/docker" "${image}" >/dev/null \
 		|| die "could not start the container ${name}"
 
