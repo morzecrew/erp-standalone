@@ -21,8 +21,10 @@ decisions:
       workspace and `$RUNNER_TEMP` back to the runner's user. Its first step installs
       git, curl, ca-certificates and jq from Ubuntu's archive, and `install-tools.sh`
       installs the job's pinned tools inside the container, calling `sudo` only when
-      it is not root. A step on the host installs a tool under `BIN_DIR`, a directory
-      the job owns, without `sudo`.
+      it is not root. A job that checks out the repository then adds the workspace
+      to git's global `safe.directory`, since the workspace outlives the job owned
+      by the runner's user. A step on the host installs a tool under `BIN_DIR`, a
+      directory the job owns, without `sudo`.
     paths: [.github/workflows/*.yml, .github/workflows/scripts/install-tools.sh]
     consequence: >-
       no package or binary a job installs outlives the job's container, zstd keeps
@@ -30,7 +32,7 @@ decisions:
     rationale: >-
       The runners' operating system and packages are unknown here, and Docker is not.
       JavaScript actions need glibc, which rules out an Alpine base.
-    fingerprint: 8f00a37f45c2d9e1/05ec8370c47850d4
+    fingerprint: 93ac34b07b47d411/05ec8370c47850d4
   - id: D-3
     grade: ASSUMED
     text: >-
