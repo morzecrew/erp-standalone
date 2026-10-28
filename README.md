@@ -134,10 +134,9 @@ sudo morzer config set \
   backup, which a sandbox does not need and which costs disk on every merge.
 
 A manual tick is `sudo morzer update --unattended`.
-`sudo morzer update --check oci://ghcr.io/morzecrew/erp-standalone` reports
-whether a newer version is published without installing anything. The bare
-`--check` refuses until the first `update` from a ref, because `init` records no
-release source ([morzer#138](https://github.com/morzecrew/morzer/issues/138)).
+`sudo morzer update --check` reports whether a newer version is published
+without installing anything. It reads the ref `init` installed from, or the
+repository of `update.channel`; a ref given to `--check` is used as given.
 
 ## Install a customer VM (follows `:stable`)
 
