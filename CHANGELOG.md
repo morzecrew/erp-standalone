@@ -13,7 +13,7 @@ head of `main`; the first tagged release seals this section under its version.
 ### Added
 
 - The `erp` release bundle — a morzer `application-release`
-  (`selfhost/v1alpha1`, morzer 0.6.0 or later) that deploys the whole ERP on one
+  (`selfhost/v1alpha1`, morzer 0.7.0 or later) that deploys the whole ERP on one
   Linux machine: `erp-backend` (API and worker), `erp-frontend`, Postgres 18.6
   behind PgBouncer 1.26.1, Valkey 9.1, RustFS 1.0.4 and one Caddy 2.11.7 edge.
 - One origin. The edge routes `/v1`, `/v1/*`, `/mcp`, `/mcp/*`, `/health` and
@@ -45,6 +45,8 @@ head of `main`; the first tagged release seals this section under its version.
 
 ### Changed
 
+- The bundle needs morzer 0.7.0 or later: a machine on an older manager refuses
+  it, naming the version it needs.
 - Between two releases on one schema, `morzer rollback` returns to the previous
   release: dev builds declare `rollback_safe: true` (a release declares what
   `components.yaml` says), and migrate now reports the database's schema, so
