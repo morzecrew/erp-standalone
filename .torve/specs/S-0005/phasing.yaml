@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+after: [S-0004]
+phasing:
+  - phase: 1
+    title: The bundle and its tools move to morzer 0.7.0
+    intent: >-
+      `bundle/manifest.yaml`'s `compatibility.min_manager_version` becomes `"0.7.0"`
+      (D-1). `install-tools.sh` pins `MORZER=0.7.0`, keeping its verification (D-2).
+      `smoke.sh` drops `volume_helper` and the pull after `apply` in `install`, and
+      its header comment says morzer pulls the helper itself (D-3). Settles D-1 to
+      D-3.
+    scope:
+      - bundle/manifest.yaml
+      - .github/workflows/scripts/install-tools.sh
+      - .github/workflows/scripts/smoke.sh
+    acceptance:
+      - >-
+        yq -e '.compatibility.min_manager_version == "0.7.0"' bundle/manifest.yaml
+      - >-
+        grep -qx 'MORZER=0.7.0' .github/workflows/scripts/install-tools.sh
+      - >-
+        ! grep -qE 'volume_helper|busybox@' .github/workflows/scripts/smoke.sh
+      - >-
+        shellcheck -S warning .github/workflows/scripts/smoke.sh
+      - >-
+        shellcheck -S warning .github/workflows/scripts/install-tools.sh
+  - phase: 2
+    title: The README and the changelog assume morzer 0.7.0
+    intent: >-
+      The README names morzer **0.7.0** as the minimum wherever it named 0.6.0, and
+      drops the `doctor`-printed volume-helper pull, both `systemctl start` lines,
+      the morzer#134 note in the dev VM's notes and the `init --repair` step after
+      `installation import`. It adds a short note on upgrading a machine set up under
+      0.6.0 (D-4). The CHANGELOG's `[Unreleased]` gains a Changed entry: the bundle
+      needs morzer 0.7.0 or later (D-5). Settles D-4 and D-5.
+    scope: [/README.md, /CHANGELOG.md]
+    acceptance:
+      - '! grep -qE ''morzer#13[459]'' README.md'
+      - '! grep -qi ''volume-helper'' README.md'
+      - >-
+        grep -qE '(morzer \*\*|\*\*morzer )0\.7\.0' README.md
+      - >-
+        ! grep -qE '(morzer \*\*|\*\*morzer )0\.6\.0' README.md
+      - grep -q '0\.7\.0' CHANGELOG.md
+    depends_on:
+      - 1
+    character: routine

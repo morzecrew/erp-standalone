@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0005
+title: The bundle needs morzer 0.7.0
+kind: design
+change:
+  type: build
+  scope: bundle
+status: draft
+implementation: none
+depends_on: [S-0001, S-0002, S-0004]
+informed_by: [S-0003]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  The bundle requires morzer 0.7.0, CI installs it, and the smoke script and the README drop the workarounds for four bugs 0.7.0 fixes: a volume helper nobody pulled, timers that never started, a pre-update backup that failed unattended ticks, and an import with no units.
+
+  The seat moves to 0.7.0 in the acceptance pull request, before any phase, because the battery's `bundle-verify` gate runs morzer from the seat, and 0.6.0 refuses a manifest that requires 0.7.0.
+motivation: |-
+  morzer 0.7.0, released 2026-10-26, fixes all ten issues this repository's operator rehearsals filed on 2026-10-26, morzer#134 to morzer#143. Its notes say a bundle built for 0.6.0 installs unchanged and no JSON output changed.
+
+  This repository still pins 0.6.0 in four places. It also carries the workarounds as instructions an operator follows: pull the image backups read volumes through, start the timers by hand, keep the pre-update backup off for an unattended tick to work at all, and run `init --repair` after an import. Each instruction is now wrong or unnecessary on 0.7.0, and the smoke tests prove a manager no operator should install.
+current_state: |-
+  - `bundle/manifest.yaml` declares `compatibility.min_manager_version: "0.6.0"` (S-0001/D-1).
+  - `install-tools.sh` installs morzer 0.6.0, verified against its release's `SHA256SUMS` and that file's minisign signature under `MORZER_PUBKEY`. 0.7.0's `SHA256SUMS` verifies under the same key; `morzer_0.7.0_linux_amd64.tar.zst` is `a90380688b2c16c671c415035e62dd0760ef30b5f5c5fb5e138e404298ea322e`.
+  - The seat's `.torve/sandbox/standalone-claude/Dockerfile` installs morzer 0.6.0 the same way. `.torve/gates/bundle-verify.sh` runs `morzer release build` and `morzer release verify --render-check` from it.
+  - `smoke.sh install` pulls `busybox@sha256:9db7b599…` after `apply`, because 0.6.0 never pulls the volume helper it reads volumes through (morzer#142).
+  - The README's dev and customer VM steps print the helper's `docker pull` through `morzer doctor` (#142) and start `erp-update.timer` and `erp-backup.timer` by hand (morzer#139). The dev VM's notes say `backup.before_update=false` is also what lets an unattended tick install on 0.6.0 (morzer#134). The lost-machine recovery runs `init --repair` after `installation import` (morzer#135).
+  - `hooks/schema-version` reports the schema the database holds, so morzer records `schema_at_install` (S-0002). 0.7.0 also records `database_schema_produces` after a service migration converges, which this bundle declares as 32.
+  - S-0004 moves the smoke tests into a rig and changes `install-tools.sh`, `smoke.sh` and the README. This document's phases come after it.
+goals: |-
+  - The bundle refuses to load on a morzer older than 0.7.0, and every CI job and the seat run 0.7.0.
+  - No instruction in the README, and no step in `smoke.sh`, works around a bug 0.7.0 fixed.
+  - A machine set up under 0.6.0 is told what upgrading morzer asks of it.
+non_goals: |-
+  - Removing `hooks/schema-version` (Q-1).
+  - Turning the dev VM's pre-update backup back on (Q-2).
+  - Rehearsing 0.7.0's new behaviour beyond what the smoke tests prove. The operator rehearses the README's paths before this document's pull request merges.
+design:
+  - key: the-floor
+    md: >-
+      `compatibility.min_manager_version` becomes `"0.7.0"`. The README's procedures
+      stop working around 0.6.0's bugs, so a 0.6.0 machine following them would end
+      with its timers stopped and no volume helper. No customer machine exists yet,
+      so raising the floor costs nothing today.
+  - key: the-tools
+    md: >-
+      `install-tools.sh` pins `MORZER=0.7.0` and keeps its verification as it is.
+      The seat's Dockerfile pins the same version.
+  - key: what-goes
+    md: |-
+      `smoke.sh install` stops pulling the volume helper, because 0.7.0's `apply` and `update` pull the pinned one themselves. A registry that lacks it is a warning, not a failure.
+
+      The README loses the `doctor`-printed `docker pull`, both `systemctl start` lines, the note that the dev VM's backup setting is what lets a tick install, and the `init --repair` after an import. It names 0.7.0 as the minimum. A short note says what upgrading morzer asks of a machine set up under 0.6.0: upgrade morzer before updating to a bundle that requires 0.7.0, and run `sudo morzer init --repair` once, or reboot, if its timers were never started.
+  - key: rollout
+    md: >-
+      The battery's `bundle-verify` gate builds and verifies the bundle with the seat's
+      morzer, and 0.6.0 refuses a manifest whose `min_manager_version` is 0.7.0. So
+      the acceptance pull request moves the seat's Dockerfile to `MORZER=0.7.0`, and
+      the operator rebuilds `standalone-claude-sandbox` before the night. No phase
+      touches `.torve/sandbox/`.
+tests: |-
+  - The manifest's `min_manager_version` is `"0.7.0"` and `install-tools.sh` pins `MORZER=0.7.0` (D-1, D-2).
+  - `smoke.sh` names no volume helper and passes shellcheck (D-3).
+  - The README cites none of morzer#134, #135 and #139, names no volume-helper pull, and names 0.7.0 as the minimum. The CHANGELOG says the bundle needs 0.7.0 (D-4, D-5).
+docs: >-
+  The README's requirements, VM setups and recovery (D-4), and a CHANGELOG entry under
+  Changed, since an operator must upgrade morzer before installing the next bundle
+  (D-5).
+out_of_scope: |-
+  - `scripts/rehearse.sh`'s offline image loading, which keeps preloading the volume helper. 0.7.0's pull of it there is a warning at most.
+  - Any morzer feature 0.7.0 adds beyond the fixes.
+risks: |-
+  - A dev VM still on 0.6.0 refuses the first bundle built under this document until morzer is upgraded. Its unattended tick holds the update for a person, which is the intended signal.
+  - 0.7.0 records `database_schema_produces` after a service migration converges, as well as the schema `hooks/schema-version` reports. If the two ever disagree, which one morzer keeps is not tested (Q-1).
+questions:
+  - id: Q-1
+    text: >-
+      Should `hooks/schema-version` go, now that 0.7.0 records `database_schema_produces`
+      after a service migration converges? Lean: keep it. It reports the schema the
+      database holds, where the declared value is what the release expects. The rehearsal
+      shows what `morzer status` records with both.
+  - id: Q-2
+    text: >-
+      Should the dev VM turn its pre-update backup back on, now that an unattended
+      tick takes it (morzer#134)? Lean: no. The README's own reason is disk on every
+      merge, and that has not changed.
