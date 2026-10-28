@@ -288,13 +288,14 @@ decisions:
   - id: D-19
     grade: ASSUMED
     text: >-
-      A bundle is smoke-tested on the runner before it is published, in jobs with
-      `packages: read`: a fresh `sudo morzer init` and `apply`, then a backup and
-      a restore (S-0002/D-5); and, when the caller's channel tag exists (`:stable`
-      for `release.yml`, `:main` otherwise, S-0002/D-6), an `init` from that published
-      bundle, `morzer update` to the new archive, and `morzer rollback` back to it
-      or its refusal for the right reason. Each probes the loopback health port. Publishing
-      is a separate job with `packages: write` that needs the smoke jobs.
+      A bundle is smoke-tested before it is published, in jobs with `packages: read`,
+      each inside a rig of its own on the runner (S-0004/D-5): a fresh `sudo morzer
+      init` and `apply`, then a backup and a restore (S-0002/D-5); and, when the caller's
+      channel tag exists (`:stable` for `release.yml`, `:main` otherwise, S-0002/D-6),
+      an `init` from that published bundle, `morzer update` to the new archive, and
+      `morzer rollback` back to it or its refusal for the right reason. Each probes
+      the rig's loopback health port. Publishing is a separate job with `packages:
+      write` that needs the smoke jobs.
     paths: [.github/workflows/**]
     consequence: >-
       a broken `main` never reaches a dev VM, an update path is proven as well as
@@ -303,7 +304,7 @@ decisions:
     rationale: >-
       Dev VMs run `update`, not `init`. The runner's root Docker logs in to ghcr for
       the private images.
-    fingerprint: 9d40300eab58079b/a2ae58da4858baa1
+    fingerprint: f1e7e3a0607a1d35/a2ae58da4858baa1
   - id: D-20
     grade: ASSUMED
     text: >-

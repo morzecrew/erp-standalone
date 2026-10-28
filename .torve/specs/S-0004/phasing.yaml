@@ -81,15 +81,17 @@ phasing:
   - phase: 3
     title: The README says what a runner needs
     intent: >-
-      The README gains a CI section: the repository variable `RUNS_ON`, the GitHub-hosted
-      fallback when it is unset, and what a runner needs, which is amd64, a Docker
-      that allows privileged containers, and room for one rig holding the release's
-      20 GiB preflight under `/var/lib/erp` and the bundle's images (D-9). Settles
-      D-9.
+      The README gains a `## CI runners` section: the repository variable `RUNS_ON`,
+      the GitHub-hosted fallback when it is unset, and what a runner needs, which
+      is amd64, a Docker that allows privileged containers, and room for one rig holding
+      the release's 20 GiB preflight under `/var/lib/erp` and the bundle's images
+      (D-9). Settles D-9.
     scope: [/README.md]
     acceptance:
+      - grep -q '^## CI runners' README.md
       - grep -q 'RUNS_ON' README.md
-      - grep -qi 'privileged' README.md
+      - >-
+        awk '/^## CI runners/,/^## [^C]/' README.md | grep -qi privileged
     depends_on:
       - 2
     character: routine

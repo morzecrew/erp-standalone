@@ -37,4 +37,18 @@ The committed manifest declares `compatibility.rollback_safe: true`. `scripts/pi
 - Paths: `.github/workflows/scripts/smoke.sh` `.github/workflows/bundle.yml` `scripts/rehearse.sh`
 - Consequence: every bundle proves that a rotated database password reaches the role and every reader
 
+### S-0004/D-4 — `ASSUMED` (CI runs on the org's runners and leaves them clean) — implementation: none
+
+`scripts/resolve.sh` and `main.yml`'s `sha7` read an image's digest and labels with `oras`: the digest from `oras manifest fetch --descriptor`, the labels from `oras manifest fetch-config`, taking an index's `linux/amd64` manifest. The script's output does not change, and `tests/pin/` stands an `oras` fixture in for the registry.
+
+- Paths: `scripts/resolve.sh` `.github/workflows/main.yml`
+- Consequence: only the smoke jobs need a Docker client, and they use the host's own
+
+### S-0004/D-7 — `ASSUMED` (CI runs on the org's runners and leaves them clean) — implementation: none
+
+`scripts/rehearse.sh` starts, enters and removes its container through `rig.sh`, keeping its fixed name `erp-rehearsal` and its offline image loading.
+
+- Paths: `scripts/rehearse.sh`
+- Consequence: the workstation rehearsal and CI exercise one rig, so a fix to either reaches both
+
 <!-- /torve:managed -->
