@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `bundle/manifest.yaml` declares `compatibility.min_manager_version: "0.7.0"`.
+    paths: [bundle/manifest.yaml]
+    consequence: >-
+      a machine on an older morzer refuses the bundle and names the version it needs,
+      instead of following README steps that assume 0.7.0's fixes
+    rationale: >-
+      The README stops working around 0.6.0's bugs, the smoke tests prove 0.7.0 only,
+      and no customer machine exists yet.
+    cites: [S-0001/D-1]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `install-tools.sh` installs morzer 0.7.0, verified as today against its release's
+      `SHA256SUMS` and that file's minisign signature under the unchanged `MORZER_PUBKEY`.
+    paths: [.github/workflows/scripts/install-tools.sh]
+    consequence: >-
+      every CI job and every rig runs the manager the bundle requires
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `smoke.sh install` no longer pulls the volume helper; morzer 0.7.0's `apply`
+      and `update` pull the pinned one themselves (morzer#142).
+    paths: [.github/workflows/scripts/smoke.sh]
+    consequence: >-
+      the smoke tests prove that a networked machine's first backup works with no
+      pull by hand
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The README names morzer 0.7.0 as the minimum and drops 0.6.0's workarounds:
+      the `doctor`-printed pull of the volume helper (morzer#142), `systemctl start`
+      of the timers (morzer#139), the note that the dev VM's backup setting is what
+      lets an unattended tick install (morzer#134), and `init --repair` after an import
+      (morzer#135). A note says a machine set up under 0.6.0 upgrades morzer before
+      the next bundle, and runs `sudo morzer init --repair` once, or reboots, if its
+      timers never started.
+    paths: [/README.md]
+    consequence: >-
+      the operator's procedures are the shortest ones 0.7.0 supports, and an existing
+      machine knows its one extra step
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The CHANGELOG's `[Unreleased]` says, under Changed, that the bundle needs morzer
+      0.7.0 or later.
+    paths: [/CHANGELOG.md]
+    consequence: >-
+      an operator reading the release learns to upgrade morzer first
