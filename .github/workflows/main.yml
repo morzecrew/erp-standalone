@@ -129,6 +129,13 @@ jobs:
           [ "${pushed}" = true ] || { echo "::error::could not push the pin to main"; exit 1; }
           echo "sha=$(git rev-parse HEAD)" >>"${GITHUB_OUTPUT}"
 
+      # The steps above ran as root over the runner's mounted workspace, so
+      # its files are root's now; the runner's next job on the host could
+      # not clean them for its checkout. Hand them back to the runner's user.
+      - name: Hand the workspace back to the runner's user
+        if: always()
+        run: chown -R "$(stat -c %u:%g "${RUNNER_WORKSPACE}")" "${RUNNER_WORKSPACE}" "${RUNNER_TEMP}"
+
   bundle:
     needs: pin
     permissions:
