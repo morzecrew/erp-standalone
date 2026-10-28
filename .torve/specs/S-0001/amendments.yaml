@@ -181,3 +181,29 @@ amendments:
       `docker:29.7.2-dind` rig of its own, removed with its volume when the job ends
       (S-0004/D-5). The checks are unchanged. Only where they run moves, and the probed
       loopback is the rig's.
+  - id: A-8
+    at: '2026-10-28T15:11:19Z'
+    title: The bundle needs morzer 0.7.0
+    changes:
+      - subject: D-1
+        field: text
+        before: >-
+          The bundle is a morzer `application-release` named `erp`, format `selfhost/v1alpha1`,
+          declaring `compatibility.min_manager_version: "0.6.0"`, Compose as its runtime
+          and `sops-age` for secrets. Its files are `bundle/manifest.yaml`, `secrets.schema.yaml`,
+          `compose/compose.yaml`, `edge/erp.caddy`, `hooks/smoke-test` and `RELEASE.md`.
+        after: >-
+          The bundle is a morzer `application-release` named `erp`, format `selfhost/v1alpha1`,
+          declaring `compatibility.min_manager_version: "0.7.0"` (S-0005/D-1), Compose
+          as its runtime and `sops-age` for secrets. Its files are `bundle/manifest.yaml`,
+          `secrets.schema.yaml`, `compose/compose.yaml`, `edge/erp.caddy`, `hooks/smoke-test`
+          and `RELEASE.md`.
+      - subject: D-1
+        field: fingerprint
+        after: fa58430dd0791a27/8fb1b1cb2a761aec
+    md: >-
+      S-0005 raises the bundle's floor to morzer 0.7.0, which fixes the four bugs
+      the README and the smoke tests worked around (morzer#134, #135, #139, #142).
+      The README stops carrying those workarounds, so a 0.6.0 machine following it
+      would end with its timers stopped and no volume helper. Refusing to load there
+      is the better failure. No customer machine exists yet.
