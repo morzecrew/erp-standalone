@@ -4,9 +4,10 @@ decisions:
     grade: ASSUMED
     text: >-
       The bundle is a morzer `application-release` named `erp`, format `selfhost/v1alpha1`,
-      declaring `compatibility.min_manager_version: "0.6.0"`, Compose as its runtime
-      and `sops-age` for secrets. Its files are `bundle/manifest.yaml`, `secrets.schema.yaml`,
-      `compose/compose.yaml`, `edge/erp.caddy`, `hooks/smoke-test` and `RELEASE.md`.
+      declaring `compatibility.min_manager_version: "0.7.0"` (S-0005/D-1), Compose
+      as its runtime and `sops-age` for secrets. Its files are `bundle/manifest.yaml`,
+      `secrets.schema.yaml`, `compose/compose.yaml`, `edge/erp.caddy`, `hooks/smoke-test`
+      and `RELEASE.md`.
     paths: [bundle/manifest.yaml, bundle/RELEASE.md]
     consequence: >-
       Compose sees `ERP_IMAGE_<KEY>`, `ERP_PARAM_<NAME>`, `ERP_SECRETS_DIR`, `ERP_RELEASE_DIR`,
@@ -16,6 +17,7 @@ decisions:
       morzer 0.6.0 is the latest release and the first with secret `owner` (CHANGELOG
       0.6.0), which every non-root reader here needs. Decoding is strict, so an unknown
       field is an error, not a silent default.
+    fingerprint: fa58430dd0791a27/8fb1b1cb2a761aec
   - id: D-2
     grade: ASSUMED
     text: >-
