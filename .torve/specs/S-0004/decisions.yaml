@@ -17,9 +17,12 @@ decisions:
     grade: ASSUMED
     text: >-
       Every job but `smoke-install` and `smoke-update` runs in the job container `ubuntu:24.04@sha256:24737cef17f4e22b1977df7d9a05e77c4e28b7da5b8911f8d8ccda136bf3573c`
-      as root. Its first step installs git, curl, ca-certificates and jq from Ubuntu's
-      archive, and `install-tools.sh` installs the job's pinned tools inside the container,
-      calling `sudo` only when it is not root.
+      as root, under `bash -e {0}`, and ends with an `always()` step that gives the
+      workspace and `$RUNNER_TEMP` back to the runner's user. Its first step installs
+      git, curl, ca-certificates and jq from Ubuntu's archive, and `install-tools.sh`
+      installs the job's pinned tools inside the container, calling `sudo` only when
+      it is not root. A step on the host installs a tool under `BIN_DIR`, a directory
+      the job owns, without `sudo`.
     paths: [.github/workflows/*.yml, .github/workflows/scripts/install-tools.sh]
     consequence: >-
       no package or binary a job installs outlives the job's container, zstd keeps
@@ -27,6 +30,7 @@ decisions:
     rationale: >-
       The runners' operating system and packages are unknown here, and Docker is not.
       JavaScript actions need glibc, which rules out an Alpine base.
+    fingerprint: 8f00a37f45c2d9e1/05ec8370c47850d4
   - id: D-3
     grade: ASSUMED
     text: >-
@@ -59,7 +63,8 @@ decisions:
       `docker:29.7.2-dind@sha256:3ef33f2e220b79ed3ef3b99d81746f06f306cd6340e2cb7331d17ae996e74cb6`
       container named `erp-smoke-<run id>-<run attempt>-<job>`, with a Docker volume
       of the same name for its `/var/lib/docker`, which `.github/workflows/scripts/rig.sh`
-      starts. The job copies `install-tools.sh`, `smoke.sh` and its archives into
+      starts with the runner's `http(s)_proxy` and `no_proxy` unless they name a loopback
+      address. The job copies `install-tools.sh`, `smoke.sh` and its archives into
       the rig, runs every `smoke.sh` operation there, and removes the container and
       its volume in an `always()` step.
     paths: [.github/workflows/bundle.yml, .github/workflows/scripts/rig.sh]
@@ -70,6 +75,7 @@ decisions:
       `scripts/rehearse.sh` runs the same operations in the same image (S-0002/D-7),
       so the rig is proven and S-0001/D-19's checks keep their meaning.
     cites: [S-0001/D-19, S-0002/D-7]
+    fingerprint: a26304f9c699f352/2e8679f2dcfb5b84
   - id: D-6
     grade: ASSUMED
     text: >-
@@ -103,9 +109,12 @@ decisions:
     grade: ASSUMED
     text: >-
       The README's CI section names `RUNS_ON` and its fallback, and what a runner
-      needs: amd64, a Docker that allows privileged containers, and room for one rig,
-      the release's 20 GiB preflight under `/var/lib/erp` and the bundle's images.
+      needs: amd64, a Docker that allows privileged containers, room for one rig (the
+      release's 20 GiB preflight under `/var/lib/erp` and the bundle's images), no
+      `sudo` for its user, and, when it sets `http(s)_proxy`, an address containers
+      reach rather than loopback.
     paths: [/README.md]
     consequence: >-
       whoever adds or replaces a runner knows what it must offer without reading the
       workflows
+    fingerprint: 348f988be0741f8a/f4289ae7acd4559a

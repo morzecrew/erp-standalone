@@ -37,9 +37,9 @@ The README's "The operator secrets" names `admin_password` as the one secret the
 - Paths: `/README.md` `bundle/RELEASE.md` `/CHANGELOG.md`
 - Consequence: an operator reads one secret to set, and one command to change the database password
 
-### S-0004/D-9 — `ASSUMED` (CI runs on the org's runners and leaves them clean) — implementation: none
+### S-0004/D-9 — `ASSUMED` (CI runs on the org's runners and leaves them clean)
 
-The README's CI section names `RUNS_ON` and its fallback, and what a runner needs: amd64, a Docker that allows privileged containers, and room for one rig, the release's 20 GiB preflight under `/var/lib/erp` and the bundle's images.
+The README's CI section names `RUNS_ON` and its fallback, and what a runner needs: amd64, a Docker that allows privileged containers, room for one rig (the release's 20 GiB preflight under `/var/lib/erp` and the bundle's images), no `sudo` for its user, and, when it sets `http(s)_proxy`, an address containers reach rather than loopback.
 
 - Paths: `/README.md`
 - Consequence: whoever adds or replaces a runner knows what it must offer without reading the workflows

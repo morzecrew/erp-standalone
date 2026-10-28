@@ -1,5 +1,4 @@
 # yaml-language-server: $schema=../../schemas/phasing.json
-after: [S-0004]
 phasing:
   - phase: 1
     title: The bundle and its tools move to morzer 0.7.0

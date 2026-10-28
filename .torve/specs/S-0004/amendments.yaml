@@ -1,0 +1,97 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-28T16:34:31Z'
+    title: >-
+      Container jobs run bash and hand the workspace back
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          Every job but `smoke-install` and `smoke-update` runs in the job container
+          `ubuntu:24.04@sha256:24737cef17f4e22b1977df7d9a05e77c4e28b7da5b8911f8d8ccda136bf3573c`
+          as root. Its first step installs git, curl, ca-certificates and jq from
+          Ubuntu's archive, and `install-tools.sh` installs the job's pinned tools
+          inside the container, calling `sudo` only when it is not root.
+        after: >-
+          Every job but `smoke-install` and `smoke-update` runs in the job container
+          `ubuntu:24.04@sha256:24737cef17f4e22b1977df7d9a05e77c4e28b7da5b8911f8d8ccda136bf3573c`
+          as root, under `bash -e {0}`, and ends with an `always()` step that gives
+          the workspace and `$RUNNER_TEMP` back to the runner's user. Its first step
+          installs git, curl, ca-certificates and jq from Ubuntu's archive, and `install-tools.sh`
+          installs the job's pinned tools inside the container, calling `sudo` only
+          when it is not root. A step on the host installs a tool under `BIN_DIR`,
+          a directory the job owns, without `sudo`.
+      - subject: D-2
+        field: fingerprint
+        after: 8f00a37f45c2d9e1/05ec8370c47850d4
+    md: >-
+      The first self-hosted runs found two things a GitHub-hosted runner had hidden.
+      A job container runs `run:` under sh unless a shell is named, and the steps
+      are bash, so `build` failed at its first here-string. And the container jobs
+      ran as root over the runner's mounted workspace, so the next job on the host
+      could not clean it for its checkout (EACCES). Every workflow now defaults to
+      `bash -e {0}`, the shell the hosted runners used, and each container job ends
+      by handing the workspace and `$RUNNER_TEMP` back to the owner of `$RUNNER_WORKSPACE`.
+      `smoke-update` fetches the published bundle on the host, where the runner's
+      user has no `sudo`, so `install-tools.sh` takes `BIN_DIR` and installs oras
+      under `$RUNNER_TEMP/bin` (baeba0b, 30bd414, 7a94971).
+  - id: A-2
+    at: '2026-10-28T16:34:32Z'
+    title: >-
+      A rig gets the runner's proxy unless it is loopback
+    changes:
+      - subject: D-5
+        field: text
+        before: >-
+          Each smoke job installs and exercises the bundle inside its own rig: a privileged
+          `docker:29.7.2-dind@sha256:3ef33f2e220b79ed3ef3b99d81746f06f306cd6340e2cb7331d17ae996e74cb6`
+          container named `erp-smoke-<run id>-<run attempt>-<job>`, with a Docker
+          volume of the same name for its `/var/lib/docker`, which `.github/workflows/scripts/rig.sh`
+          starts. The job copies `install-tools.sh`, `smoke.sh` and its archives into
+          the rig, runs every `smoke.sh` operation there, and removes the container
+          and its volume in an `always()` step.
+        after: >-
+          Each smoke job installs and exercises the bundle inside its own rig: a privileged
+          `docker:29.7.2-dind@sha256:3ef33f2e220b79ed3ef3b99d81746f06f306cd6340e2cb7331d17ae996e74cb6`
+          container named `erp-smoke-<run id>-<run attempt>-<job>`, with a Docker
+          volume of the same name for its `/var/lib/docker`, which `.github/workflows/scripts/rig.sh`
+          starts with the runner's `http(s)_proxy` and `no_proxy` unless they name
+          a loopback address. The job copies `install-tools.sh`, `smoke.sh` and its
+          archives into the rig, runs every `smoke.sh` operation there, and removes
+          the container and its volume in an `always()` step.
+      - subject: D-5
+        field: fingerprint
+        after: a26304f9c699f352/2e8679f2dcfb5b84
+    md: >-
+      A runner behind a proxy hands its jobs `http(s)_proxy`, and a rig's daemon needs
+      one to pull where the host has no direct route. A proxy on `127.0.0.1` is the
+      host's own, which a rig cannot reach, so `rig.sh` passes the proxy variables
+      into the rig only when they name another address (db81d90).
+  - id: A-3
+    at: '2026-10-28T16:34:33Z'
+    title: >-
+      A runner's proxy must be reachable from containers
+    changes:
+      - subject: D-9
+        field: text
+        before: >-
+          The README's CI section names `RUNS_ON` and its fallback, and what a runner
+          needs: amd64, a Docker that allows privileged containers, and room for one
+          rig, the release's 20 GiB preflight under `/var/lib/erp` and the bundle's
+          images.
+        after: >-
+          The README's CI section names `RUNS_ON` and its fallback, and what a runner
+          needs: amd64, a Docker that allows privileged containers, room for one rig
+          (the release's 20 GiB preflight under `/var/lib/erp` and the bundle's images),
+          no `sudo` for its user, and, when it sets `http(s)_proxy`, an address containers
+          reach rather than loopback.
+      - subject: D-9
+        field: fingerprint
+        after: 348f988be0741f8a/f4289ae7acd4559a
+    md: >-
+      The runners showed what a runner must offer beyond Docker and disk. Its user
+      has no `sudo`, which the jobs no longer ask for. A proxy the runner sets reaches
+      every job container, where `127.0.0.1` is the container's own, so it must name
+      an address containers reach, such as the Docker bridge's. morze-nsk-2's xray
+      inbound on loopback broke checkout until it also listened on `172.17.0.1`.
