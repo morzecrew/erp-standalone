@@ -1,0 +1,123 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0004
+title: >-
+  CI runs on the org's runners and leaves them clean
+kind: design
+change:
+  type: ci
+  scope: workflows
+status: draft
+implementation: none
+depends_on: [S-0001, S-0002, S-0003]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  Every workflow job runs on the runner the repository variable `RUNS_ON` names, the org's self-hosted runners today, and leaves that host as it found it: tools run in a pinned job container, and each smoke job installs the bundle inside a privileged rig of its own that the job removes.
+
+  GitHub-hosted `ubuntu-24.04` stays the fallback when the variable is unset, by the same steps. `scripts/resolve.sh` and the pin step read the registry with `oras`, so only the smoke jobs need a Docker client, and they share their rig with `scripts/rehearse.sh`.
+motivation: |-
+  GitHub Actions no longer starts this repository's jobs on GitHub-hosted runners. Since 2026-10-27 22:22Z every `main.yml` run has failed at `pin` with "The job was not started because recent account payments have failed or your spending limit needs to be increased". Nothing publishes and no smoke test runs.
+
+  erp-backend runs its jobs on the org's self-hosted runners with `runs-on: ${{ vars.RUNS_ON || 'ubuntu-latest' }}` and the repository variable `RUNS_ON=self-hosted`, and erp-standalone has had the same variable since 2026-10-28. Switching the label is not enough here, though. These jobs assume a fresh virtual machine each time: `install-tools.sh` installs binaries into `/usr/local/bin` with `sudo` and zstd with `apt-get`, the build logs the runner user's Docker in to ghcr, and the smoke jobs install the whole ERP as root with `sudo morzer init` and `apply`. On a long-lived runner shared with other repositories, each of those outlives the job, and two smoke jobs on one host would install into the same installation.
+current_state: |-
+  - Every job runs on `ubuntu-24.04`: `main.yml`'s `pin`, `bundle.yml`'s `build`, `smoke-install` and `smoke-update`, `publish.yml`, `release.yml`'s `guard` and `retention.yml`. `pr.yml` and `release.yml` reach the rest through `bundle.yml` and `publish.yml`.
+  - `install-tools.sh` installs minisign, morzer, oras, sops, age and yq into `/usr/local/bin` with `sudo install`, and zstd with `sudo apt-get` at its Ubuntu 24.04 package version. GitHub-hosted images bring git, curl, jq and a Docker client with buildx.
+  - `pin` and `build` run `docker login ghcr.io`, which writes the runner user's `~/.docker/config.json`. The smoke jobs run `sudo docker login`, which writes root's.
+  - `scripts/resolve.sh` (S-0001/D-17), and `main.yml`'s `sha7`, read a component image's digest and labels with `docker buildx imagetools inspect`. `tests/pin/run.sh` stands a `docker` fixture in for it.
+  - `smoke.sh` runs every morzer and Docker command through `sudo` on the runner and probes `127.0.0.1:8081` there (S-0001/D-19, S-0002/D-5, S-0003/D-6). `free-disk` refuses anywhere but a GitHub-hosted runner.
+  - `scripts/rehearse.sh` (S-0002/D-7) already runs the same smoke operations on a workstation inside a privileged `docker:29.7.2-dind` container, `erp-rehearsal`. It adds bash, curl, jq, openssl, sudo, zstd, minisign and GNU tar with `apk`, copies in `install-tools.sh` and `smoke.sh`, and loads the bundle's images from an OCI layout, so no credential enters it.
+  - The self-hosted runners, `instance-20261022-134223` and `s565` in the `default` group, carry the label `self-hosted` and serve erp-backend's jobs. Their operating system and packages are nothing this repository can rely on. Docker is, including privileged containers.
+goals: |-
+  - Every job runs on the runner `RUNS_ON` names, and on GitHub-hosted `ubuntu-24.04` when it is unset, by the same steps.
+  - A job leaves the runner as it found it: none of its packages, binaries, credentials, containers or volumes survives it.
+  - The smoke jobs prove what they prove today, install, backup and restore, password rotation, update and rollback, each in an installation of its own.
+non_goals: |-
+  - Moving to morzer 0.7.0, which is the next document's subject.
+  - Caching images across rigs (Q-1).
+  - Changing what any smoke step proves.
+design:
+  - key: where-a-job-runs
+    md: |-
+      Every job's `runs-on` is `${{ vars.RUNS_ON || 'ubuntu-24.04' }}`, as erp-backend's are.
+
+      Every job except the two smoke jobs runs in a job container, `ubuntu:24.04` pinned by digest, as root. Its first step installs git, curl, ca-certificates and jq from Ubuntu's archive, so that `actions/checkout` can fetch the history `scripts/version.sh` reads. `install-tools.sh` then installs the job's pinned tools inside the container. It calls `sudo` only when it is not root, so a workstation run keeps working. Nothing reaches the host's filesystem but the job's workspace and `$RUNNER_TEMP`, which the runner mounts. JavaScript actions need a glibc container, which is why the base is not Alpine.
+
+      A job that talks to ghcr sets `DOCKER_CONFIG` to a directory under `$RUNNER_TEMP` and logs in with `oras login ghcr.io --password-stdin`. morzer and oras both read that file.
+  - key: the-registry-without-docker
+    md: |-
+      `scripts/resolve.sh` reads the digest with `oras manifest fetch --descriptor <ref>` and the labels from `oras manifest fetch-config`, asking an index for its `linux/amd64` manifest. Its output does not change: the digest on line one, and `schema=` when the label exists. `main.yml`'s `sha7` reads the revision label the same way. `tests/pin/` gains an `oras` fixture in place of its `docker` one.
+
+      After this, only the smoke jobs need a Docker client, and they use the host's own Docker.
+  - key: a-rig-per-smoke-job
+    md: |-
+      `.github/workflows/scripts/rig.sh` holds what `scripts/rehearse.sh` does by hand today. It starts a privileged `docker:29.7.2-dind` container, pinned by digest, with a Docker volume of the same name for its `/var/lib/docker`. It waits for that daemon, adds the packages `rehearse.sh` adds, copies files in, runs commands inside, and removes the container and its volume. The verbs are `start`, `cp`, `exec`, `login` and `stop`.
+
+      A smoke job names its rig `erp-smoke-<run id>-<run attempt>-<job>`. It starts the rig, copies in `install-tools.sh`, `smoke.sh` and its archives, runs `install-tools.sh` and then every `smoke.sh` operation inside the rig, and stops the rig in an `always()` step. Inside the rig `root` runs `smoke.sh`'s `sudo` commands, and the probe's `127.0.0.1:8081` is the rig's own loopback. `rig.sh login` logs the rig's Docker in to ghcr with the job's token on stdin, so the token is written only inside a container the job removes.
+
+      `rehearse.sh` keeps its fixed name and its offline image loading, and starts, enters and removes its container through `rig.sh`.
+
+      `free-disk` runs only on a GitHub-hosted runner. There the rig's volume still lives on the host's disk, which the release's 20 GiB preflight needs. A self-hosted runner's disk belongs to whoever runs it.
+  - key: what-a-runner-needs
+    md: >-
+      The README's CI section names the variable and what a runner needs: amd64, a
+      Docker that allows privileged containers, and room for one rig. A rig holds
+      the release's 20 GiB preflight under `/var/lib/erp` and the bundle's images
+      in its volume.
+tests: |-
+  - Every job's `runs-on` is the `RUNS_ON` expression, and no workflow names a fixed `ubuntu` label (D-1).
+  - Every job but the smoke jobs declares the pinned `ubuntu:24.04` job container, `install-tools.sh` passes shellcheck, and it runs nothing through `sudo` as root (D-2).
+  - No workflow runs `docker login` or `sudo docker login`; ghcr is reached through `oras login` under `DOCKER_CONFIG` (D-3).
+  - `tests/pin/run.sh` passes with an `oras` fixture standing in for the registry, and no script or workflow calls `imagetools` (D-4).
+  - `rig.sh` passes shellcheck and prints its usage. Each smoke job starts a rig, runs `smoke.sh` through `rig.sh exec`, and stops it in an `always()` step (D-5, D-6).
+  - `rehearse.sh` passes shellcheck and calls `rig.sh` (D-7).
+  - Each `free-disk` step is conditioned on `runner.environment == 'github-hosted'` (D-8).
+  - actionlint and `zizmor --offline` pass over every workflow.
+docs: >-
+  The README gains a CI section: the `RUNS_ON` variable, the fallback, and what a
+  runner needs (D-9). This changes how the repository is built, not what it ships,
+  so the CHANGELOG has no entry.
+out_of_scope: |-
+  - morzer 0.7.0, the next document.
+  - A registry mirror or an image cache shared between rigs (Q-1).
+  - Renovate rules for the two new digests, which `renovate.json`'s Docker manager may already reach.
+risks: |-
+  - Each rig pulls every image the bundle pins, so a smoke job that had an image already on its host now downloads it. The first measured run sets the expectation (Q-1).
+  - A runner short of disk fails the smoke job inside the rig, not on the host. The README says how much room a rig needs.
+  - A job killed before its `always()` step, for example by a runner restart, leaves its rig and volume behind. Names never repeat, so nothing collides, but the disk stays used until someone removes `erp-smoke-*` (Q-2).
+  - Whether morzer's `release build` reads registry credentials from `DOCKER_CONFIG` as oras does has not been tested. If it does not, the build cannot resolve private images, which shows on the first run.
+alternatives:
+  - option: >-
+      Keep the jobs as they are and only switch `runs-on` to the variable.
+    rejected_because: >-
+      Every job would install into `/usr/local/bin` and log Docker in on a host shared
+      with other repositories, and the smoke jobs would install the ERP as root on
+      it, where the next smoke job's `init` meets the last one's installation.
+  - option: >-
+      Publish a CI image to ghcr and run every job, smoke jobs included, in it as
+      a job container.
+    rejected_because: >-
+      A smoke job needs a Docker daemon of its own, which a job container does not
+      start, and publishing the image adds a workflow that has to run before any other
+      can. The pinned `ubuntu:24.04` base with `install-tools.sh`, and a rig for the
+      smoke jobs, need neither.
+  - option: >-
+      Run the smoke jobs on the host and remove their installation afterwards.
+    rejected_because: >-
+      The cleanup has to know where morzer keeps an installation's state, its containers
+      and its volumes, and goes wrong as soon as that changes. A job killed mid-way
+      skips it, and the next job's `init` meets the leftovers. A rig is removed whole,
+      and its leftovers never meet another job.
+questions:
+  - id: Q-1
+    text: >-
+      Should rigs share an image cache, through a pull-through registry on each runner
+      or a volume of base images? Lean: not until a measured run shows the pulls dominate
+      a smoke job.
+  - id: Q-2
+    text: >-
+      Should `rig.sh start` remove `erp-smoke-*` rigs left by a killed job, those
+      older than a day? Lean: yes, once one has been seen; until then the risk is
+      disk, not correctness.

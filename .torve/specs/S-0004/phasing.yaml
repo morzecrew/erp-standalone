@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: Each smoke job runs in a rig of its own
+    intent: >-
+      Add `.github/workflows/scripts/rig.sh` with the verbs `start <name>`, `cp <name>
+      <src> <dst>`, `exec <name> <command...>`, `login <name> <registry> <user>` (token
+      on stdin) and `stop <name>`, holding what `scripts/rehearse.sh` does by hand:
+      a privileged `docker:29.7.2-dind` container pinned by digest (D-5), a same-named
+      volume for `/var/lib/docker`, a wait for its daemon, the `apk` packages rehearse.sh
+      adds, and removal of both. With no verb it prints its usage and exits non-zero.
+      `bundle.yml`'s `smoke-install` and `smoke-update` start `erp-smoke-<run id>-<run
+      attempt>-<job>`, copy in `install-tools.sh`, `smoke.sh` and their archives,
+      run `install-tools.sh` and every `smoke.sh` operation through `rig.sh exec`,
+      log the rig in with `rig.sh login`, and run `rig.sh stop` in an `always()` step;
+      neither runs `sudo docker login` on the host. Each `free-disk` step gains `if:
+      runner.environment == 'github-hosted'` (D-8). `smoke.sh` keeps its operations
+      and `sudo` (D-6). `scripts/rehearse.sh` drives its container through `rig.sh`,
+      keeping its name and offline image loading (D-7). Settles D-5 to D-8.
+    scope:
+      - .github/workflows/bundle.yml
+      - .github/workflows/scripts/rig.sh
+      - .github/workflows/scripts/smoke.sh
+      - scripts/rehearse.sh
+    acceptance:
+      - actionlint
+      - zizmor --offline .github/workflows
+      - >-
+        shellcheck -S warning .github/workflows/scripts/rig.sh
+      - >-
+        shellcheck -S warning .github/workflows/scripts/smoke.sh
+      - shellcheck -S warning scripts/rehearse.sh
+      - >-
+        bash .github/workflows/scripts/rig.sh 2>&1 | grep -qi usage
+      - >-
+        ! grep -q 'sudo docker login' .github/workflows/bundle.yml
+      - >-
+        test "$(grep -c 'rig.sh stop' .github/workflows/bundle.yml)" -eq 2
+      - grep -q 'rig.sh' scripts/rehearse.sh
+      - >-
+        grep -qF "runner.environment == 'github-hosted'" .github/workflows/bundle.yml
+  - phase: 2
+    title: >-
+      Every job runs on RUNS_ON and installs nothing on the host
+    intent: >-
+      Every job's `runs-on` becomes `${{ vars.RUNS_ON || 'ubuntu-24.04' }}` (D-1).
+      `main.yml`'s `pin`, `bundle.yml`'s `build`, `publish.yml`'s `publish`, `release.yml`'s
+      `guard` and `retention.yml`'s `retention` run in the job container `ubuntu:24.04@sha256:24737cef17f4e22b1977df7d9a05e77c4e28b7da5b8911f8d8ccda136bf3573c`,
+      whose first step installs git, curl, ca-certificates and jq with apt before
+      `actions/checkout`. `install-tools.sh` calls `sudo` only when `id -u` is not
+      0 (D-2). Those jobs set `DOCKER_CONFIG` under `$RUNNER_TEMP` and log in with
+      `oras login ghcr.io --password-stdin` in place of `docker login` (D-3). `scripts/resolve.sh`
+      keeps its output, the digest and then `schema=<label>`, but reads them with
+      `oras manifest fetch --descriptor` and `oras manifest fetch-config` (`--platform
+      linux/amd64` for an index), and `main.yml`'s `sha7` reads the revision label
+      the same way. `tests/pin/run.sh` puts an `oras` fixture on PATH in place of
+      `docker-fixture.sh` (D-4). Settles D-1 to D-4.
+    scope:
+      - .github/workflows/*.yml
+      - .github/workflows/scripts/install-tools.sh
+      - scripts/resolve.sh
+      - tests/pin/**
+    acceptance:
+      - actionlint
+      - zizmor --offline .github/workflows
+      - bash tests/pin/run.sh
+      - >-
+        shellcheck -S warning .github/workflows/scripts/install-tools.sh scripts/resolve.sh
+      - >-
+        ! grep -nE 'runs-on: +ubuntu' .github/workflows/*.yml
+      - >-
+        ! grep -rn 'imagetools' .github/workflows scripts
+      - '! grep -n ''docker login'' .github/workflows/*.yml'
+      - >-
+        test "$(grep -l 'ubuntu:24.04@sha256:2473' .github/workflows/*.yml | wc -l)"
+        -ge 5
+      - >-
+        grep -q 'DOCKER_CONFIG' .github/workflows/bundle.yml
+    depends_on:
+      - 1
+  - phase: 3
+    title: The README says what a runner needs
+    intent: >-
+      The README gains a CI section: the repository variable `RUNS_ON`, the GitHub-hosted
+      fallback when it is unset, and what a runner needs, which is amd64, a Docker
+      that allows privileged containers, and room for one rig holding the release's
+      20 GiB preflight under `/var/lib/erp` and the bundle's images (D-9). Settles
+      D-9.
+    scope: [/README.md]
+    acceptance:
+      - grep -q 'RUNS_ON' README.md
+      - grep -qi 'privileged' README.md
+    depends_on:
+      - 2
+    character: routine
