@@ -36,17 +36,27 @@ check() { # <sha256> <file>
 	echo "$1  $2" | sha256sum -c -
 }
 
+# A job container runs as root, where `sudo` may not be installed; a
+# workstation runs this script as an ordinary user, where it is.
+as_root() {
+	if [ "$(id -u)" -eq 0 ]; then
+		"$@"
+	else
+		sudo "$@"
+	fi
+}
+
 for tool in "$@"; do
 	case "${tool}" in
 	minisign)
 		curl -fsSLO "${gh}/jedisct1/minisign/releases/download/${MINISIGN}/minisign-${MINISIGN}-linux.tar.gz"
 		check "${MINISIGN_SHA256}" "minisign-${MINISIGN}-linux.tar.gz"
 		tar -xzf "minisign-${MINISIGN}-linux.tar.gz" minisign-linux/x86_64/minisign
-		sudo install -m 0755 minisign-linux/x86_64/minisign /usr/local/bin/minisign
+		as_root install -m 0755 minisign-linux/x86_64/minisign /usr/local/bin/minisign
 		;;
 	zstd)
-		sudo apt-get update -qq
-		sudo apt-get install -y -qq --no-install-recommends "zstd=${ZSTD}"
+		as_root apt-get update -qq
+		as_root apt-get install -y -qq --no-install-recommends "zstd=${ZSTD}"
 		;;
 	morzer)
 		base="${gh}/morzecrew/morzer/releases/download/v${MORZER}"
@@ -56,29 +66,29 @@ for tool in "$@"; do
 		minisign -Vm SHA256SUMS -P "${MORZER_PUBKEY}"
 		grep " morzer_${MORZER}_linux_amd64.tar.zst\$" SHA256SUMS | sha256sum -c -
 		tar --zstd -xf "morzer_${MORZER}_linux_amd64.tar.zst" morzer
-		sudo install -m 0755 morzer /usr/local/bin/morzer
+		as_root install -m 0755 morzer /usr/local/bin/morzer
 		;;
 	oras)
 		curl -fsSLO "${gh}/oras-project/oras/releases/download/v${ORAS}/oras_${ORAS}_linux_amd64.tar.gz"
 		check "${ORAS_SHA256}" "oras_${ORAS}_linux_amd64.tar.gz"
 		tar -xzf "oras_${ORAS}_linux_amd64.tar.gz" oras
-		sudo install -m 0755 oras /usr/local/bin/oras
+		as_root install -m 0755 oras /usr/local/bin/oras
 		;;
 	sops)
 		curl -fsSL -o sops "${gh}/getsops/sops/releases/download/v${SOPS}/sops-v${SOPS}.linux.amd64"
 		check "${SOPS_SHA256}" sops
-		sudo install -m 0755 sops /usr/local/bin/sops
+		as_root install -m 0755 sops /usr/local/bin/sops
 		;;
 	age)
 		curl -fsSLO "${gh}/FiloSottile/age/releases/download/v${AGE}/age-v${AGE}-linux-amd64.tar.gz"
 		check "${AGE_SHA256}" "age-v${AGE}-linux-amd64.tar.gz"
 		tar -xzf "age-v${AGE}-linux-amd64.tar.gz" age/age age/age-keygen
-		sudo install -m 0755 age/age age/age-keygen /usr/local/bin/
+		as_root install -m 0755 age/age age/age-keygen /usr/local/bin/
 		;;
 	yq)
 		curl -fsSL -o yq "${gh}/mikefarah/yq/releases/download/v${YQ}/yq_linux_amd64"
 		check "${YQ_SHA256}" yq
-		sudo install -m 0755 yq /usr/local/bin/yq
+		as_root install -m 0755 yq /usr/local/bin/yq
 		;;
 	*)
 		echo "install-tools.sh: no pin for '${tool}'" >&2

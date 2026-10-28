@@ -14,12 +14,19 @@ concurrency:
 
 jobs:
   guard:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.RUNS_ON || 'ubuntu-24.04' }}
+    container:
+      image: ubuntu:24.04@sha256:24737cef17f4e22b1977df7d9a05e77c4e28b7da5b8911f8d8ccda136bf3573c
     permissions:
       contents: read
     outputs:
       version: ${{ steps.tag.outputs.version }}
     steps:
+      - name: Install git, curl, ca-certificates and jq
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git curl ca-certificates jq
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0

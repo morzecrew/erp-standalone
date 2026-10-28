@@ -11,12 +11,12 @@
 #   schema=0007
 #
 # Line one is always the digest of the tag, read from the registry with
-# `docker buildx imagetools inspect`. Line two appears only when the image
+# `oras manifest fetch --descriptor`. Line two appears only when the image
 # carries the `tech.morze.erp.schema` label -- the migrations image does -- so
 # a reader learns which schema a release produces without running it.
 #
-# This reaches the registry, so it needs the network and a logged-in Docker;
-# tests/pin/run.sh drives its caller with this script replaced by a fixture.
+# This reaches the registry, so it needs the network and a logged-in `oras`;
+# tests/pin/run.sh stands an `oras` fixture in for the registry.
 set -euo pipefail
 
 schema_label=tech.morze.erp.schema
@@ -35,7 +35,7 @@ case "$ref" in
 		;;
 esac
 
-digest=$(docker buildx imagetools inspect "$ref" --format '{{.Manifest.Digest}}')
+digest=$(oras manifest fetch --descriptor "$ref" | jq -r '.digest')
 case "$digest" in
 	sha256:*) ;;
 	*)
@@ -45,14 +45,14 @@ case "$digest" in
 esac
 printf '%s\n' "$digest"
 
-# A multi-platform index has no single image config to read labels from. The
-# migrations image is published single-platform -- the manifest requires
-# amd64 -- so its config is the one asked for below, and an image without one
-# simply reports no label.
-labels=$(docker buildx imagetools inspect "$ref" \
-	--format '{{json .Image.Config.Labels}}' 2>/dev/null || true)
+# A multi-platform index has no config of its own; its linux/amd64 manifest
+# does. Ask for the tag's own config first -- a single-platform image has one
+# -- and fall back to the platform's manifest when it is an index. An image
+# with no config at all simply reports no label.
+labels=$(oras manifest fetch-config "$ref" 2>/dev/null \
+	|| oras manifest fetch-config --platform linux/amd64 "$ref" 2>/dev/null || true)
 schema=$(printf '%s' "$labels" \
-	| jq -r --arg key "$schema_label" 'if type == "object" then (.[$key] // empty) else empty end' 2>/dev/null || true)
+	| jq -r --arg key "$schema_label" '(.config.Labels // {})[$key] // empty' 2>/dev/null || true)
 if [ -n "$schema" ]; then
 	printf 'schema=%s\n' "$schema"
 fi
