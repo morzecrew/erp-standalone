@@ -318,9 +318,12 @@ jobs:
           persist-credentials: false
 
       # Only the host reaches ghcr here, to fetch the published bundle; the
-      # rig installs its own tools and pulls its own images.
+      # rig installs its own tools and pulls its own images. oras goes under
+      # $RUNNER_TEMP, which the job owns, so the host needs no sudo.
       - name: Install oras
-        run: bash .github/workflows/scripts/install-tools.sh oras
+        run: |
+          BIN_DIR="${RUNNER_TEMP}/bin" bash .github/workflows/scripts/install-tools.sh oras
+          echo "${RUNNER_TEMP}/bin" >>"${GITHUB_PATH}"
 
       - name: Log in to ghcr
         env:
