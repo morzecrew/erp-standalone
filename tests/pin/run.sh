@@ -2,7 +2,7 @@
 #
 # Drives scripts/pin.sh over throwaway copies of the tree, with the resolver
 # `pin.sh` would call replaced by tests/pin/resolve-fixture.sh and a stand-in
-# `docker` for scripts/resolve.sh's own check, so nothing here reaches the
+# `oras` for scripts/resolve.sh's own check, so nothing here reaches the
 # network and the committed bundle/manifest.yaml is never written.
 #
 #   bash tests/pin/run.sh
@@ -26,8 +26,8 @@ trap 'rm -rf "${work}"' EXIT
 # depend on the modes of the files it reads.
 mkdir -p "${work}/bin"
 cp "${here}/resolve-fixture.sh" "${work}/resolve.sh"
-cp "${here}/docker-fixture.sh" "${work}/bin/docker"
-chmod +x "${work}/resolve.sh" "${work}/bin/docker"
+cp "${here}/oras-fixture.sh" "${work}/bin/oras"
+chmod +x "${work}/resolve.sh" "${work}/bin/oras"
 resolve_fixture=${work}/resolve.sh
 
 # The manifest as committed, to compare a pinned copy against.

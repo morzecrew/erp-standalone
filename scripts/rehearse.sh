@@ -8,12 +8,14 @@
 #   scripts/rehearse.sh [--from <oci ref>] [--keep]
 #
 # Everything runs in a privileged docker:dind container, `erp-rehearsal`, with
-# a volume of the same name for its /var/lib/docker; a second run refuses
-# while either exists. The container gets copies of install-tools.sh and
-# smoke.sh, and of the working tree's bundle/ as git sees it, never a mount of
-# the checkout. No credential enters it: the workstation's `oras`, with its
-# existing login, pulls the published bundle and copies every image either
-# manifest pins into an OCI layout, which the container's daemon loads.
+# a volume of the same name for its /var/lib/docker, which
+# .github/workflows/scripts/rig.sh starts, enters and removes as CI's smoke
+# jobs do; a second run refuses while either exists. The container gets copies
+# of install-tools.sh and smoke.sh, and of the working tree's bundle/ as git
+# sees it, never a mount of the checkout. No credential enters it: the
+# workstation's `oras`, with its existing login, pulls the published bundle and
+# copies every image either manifest pins into an OCI layout, which the
+# container's daemon loads.
 #
 # Environment:
 #   REHEARSE_PUBKEY  the minisign public key that signed the --from bundle
@@ -25,7 +27,7 @@ root=$(cd "${self_dir}/.." && pwd)
 scripts=${root}/.github/workflows/scripts
 
 name=erp-rehearsal
-dind=docker:29.7.2-dind
+rig=${scripts}/rig.sh
 from=ghcr.io/morzecrew/erp-standalone:main
 keep=false
 
@@ -34,7 +36,9 @@ usage() {
 Usage: scripts/rehearse.sh [--from <oci ref>] [--keep]
 
 Rehearse a bundle's install, backup, restore, password rotation, update and
-rollback in a privileged ${dind} container named ${name}, as CI's smoke jobs do.
+rollback in a privileged docker:29.7.2-dind container named ${name}, as CI's
+smoke jobs do. .github/workflows/scripts/rig.sh starts it, enters it and
+removes it.
 It installs the --from bundle, updates it to the working tree's bundle/
 built as 0.0.0-rehearsal.<unix time>, and rolls back.
 
@@ -81,9 +85,10 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-for tool in docker oras yq git tar; do
+for tool in docker oras yq git tar bash; do
 	command -v "${tool}" >/dev/null || die "${tool} is not on PATH; see --help"
 done
+[ -f "${rig}" ] || die "${rig} is missing; see --help"
 yq --version 2>/dev/null | grep -q mikefarah || die "yq on PATH is not mikefarah's yq v4; see --help"
 from_pubkey=${REHEARSE_PUBKEY:-}
 [ -n "${from_pubkey}" ] || die "set REHEARSE_PUBKEY to the public key that signed ${from}; see --help"
@@ -101,16 +106,15 @@ cleanup() {
 	rm -rf "${work}"
 	"${started}" || return 0
 	if "${keep}"; then
-		echo "rehearse.sh: kept; remove with: docker rm -f ${name} && docker volume rm ${name}"
+		echo "rehearse.sh: kept; remove with: bash ${rig} stop ${name}"
 	else
-		docker rm -f "${name}" >/dev/null || true
-		docker volume rm "${name}" >/dev/null || true
+		bash "${rig}" stop "${name}" || true
 	fi
 }
 trap cleanup EXIT
 
 in_box() {
-	docker exec "${name}" "$@"
+	bash "${rig}" exec "${name}" "$@"
 }
 
 # The published bundle, before anything is started.
@@ -119,31 +123,21 @@ oras pull "${from}" -o "${work}/published" >/dev/null
 published=$(find "${work}/published" -maxdepth 1 -name '*.tar.zst' -print -quit)
 [ -n "${published}" ] || die "${from} holds no bundle archive"
 
-# `docker run` refuses a name already taken, so only the run that created the
-# container ever removes it.
-docker run -d --privileged --name "${name}" \
-	-v "${name}:/var/lib/docker" "${dind}" >/dev/null
+# rig.sh's start refuses a name already taken, and removes the container and
+# its volume itself when the daemon never answers or its packages fail.
+echo "rehearse.sh: starting ${name}"
+bash "${rig}" start "${name}"
 started=true
 
-echo "rehearse.sh: waiting for the container's daemon"
-for _ in $(seq 60); do
-	in_box docker info >/dev/null 2>&1 && break
-	sleep 1
-done
-in_box docker info >/dev/null 2>&1 || die "the daemon in ${name} did not start"
-
-# GNU tar beside the listed tools: busybox's reads no zstd, and both
-# install-tools.sh and smoke.sh unpack .tar.zst.
-in_box apk add --no-cache --quiet bash curl jq openssl sudo zstd minisign tar
 in_box mkdir -p /rehearsal/dist /rehearsal/published
-docker cp "${scripts}/install-tools.sh" "${name}:/rehearsal/install-tools.sh"
-docker cp "${scripts}/smoke.sh" "${name}:/rehearsal/smoke.sh"
+bash "${rig}" cp "${name}" "${scripts}/install-tools.sh" /rehearsal/install-tools.sh
+bash "${rig}" cp "${name}" "${scripts}/smoke.sh" /rehearsal/smoke.sh
 in_box bash /rehearsal/install-tools.sh morzer sops age
 
 # The tree as git sees it, so nothing it ignores enters the container.
 git -C "${root}" ls-files -z --cached --others --exclude-standard -- bundle \
 	| tar -C "${root}" --null -T - -cf - \
-	| docker cp - "${name}:/rehearsal"
+	| bash "${rig}" cp "${name}" - /rehearsal
 
 version=0.0.0-rehearsal.$(date +%s)
 echo "rehearse.sh: building ${version}"
@@ -168,7 +162,7 @@ archive=/rehearsal/dist/erp-${version}.tar.zst
 pubkey=$(in_box sed -n 2p /rehearsal/rehearsal.pub)
 
 box_published=/rehearsal/published/$(basename "${published}")
-docker cp "${published}" "${name}:${box_published}"
+bash "${rig}" cp "${name}" "${published}" "${box_published}"
 # shellcheck disable=SC2016 # expanded by the container's bash
 in_box bash -c '
 	manifest=$(tar -I zstd -tf "$1" | grep -E "(^|/)manifest\.yaml$" | awk "{ print length, \$0 }" \
@@ -213,7 +207,7 @@ load_image() {
 	IMAGE=${image} yq -i -p json -o json '
 		.manifests |= map(select(.annotations."org.opencontainers.image.ref.name" == "rehearsal")) |
 		.manifests[0].annotations."io.containerd.image.name" = strenv(IMAGE)' "${layout}/index.json"
-	tar -C "${layout}" -cf - oci-layout index.json blobs | docker exec -i "${name}" docker load >/dev/null
+	tar -C "${layout}" -cf - oci-layout index.json blobs | in_box docker load >/dev/null
 	rm -rf "${layout}"
 }
 
@@ -228,8 +222,8 @@ done <"${work}/images"
 
 smoke() {
 	echo "rehearse.sh: smoke.sh $1"
-	if ! docker exec "${name}" bash /rehearsal/smoke.sh "$@"; then
-		docker exec "${name}" bash /rehearsal/smoke.sh diagnose || true
+	if ! in_box bash /rehearsal/smoke.sh "$@"; then
+		in_box bash /rehearsal/smoke.sh diagnose || true
 		die "smoke.sh $1 failed"
 	fi
 }

@@ -456,6 +456,22 @@ runs `smoke.sh diagnose` on a failure. `--help` prints what the
 workstation needs — `docker`, `oras` logged in to ghcr, and mikefarah's `yq` v4 — and the
 public key that signed the `--from` bundle must be in `REHEARSE_PUBKEY`.
 
+## CI runners
+
+Every workflow job runs on `${{ vars.RUNS_ON || 'ubuntu-24.04' }}`: the
+repository variable `RUNS_ON` names the runner label — `self-hosted` today —
+and, unset, the jobs run on GitHub-hosted `ubuntu-24.04` with the same steps.
+
+A runner, self-hosted or GitHub-hosted, needs:
+
+- **amd64.** The bundle's images and the smoke jobs that exercise them are
+  amd64 only.
+- **A Docker that allows privileged containers.** Each smoke job runs the
+  bundle inside a privileged `docker:29.7.2-dind` rig with its own Docker
+  volume, and `scripts/rehearse.sh` uses the same rig on a workstation.
+- **Room for one rig:** the release's 20 GiB preflight under `/var/lib/erp`
+  plus the bundle's images, all held by that rig's container and volume.
+
 ## Cutting a release
 
 A release is made of component releases, so it is cut in this order:
