@@ -1,5 +1,6 @@
-# The stable channel: a tag `vX.Y.Z` on main builds the component releases
-# components.yaml names into `:X.Y.Z`, then moves `:stable`.
+# The stable channel: a tag `vX.Y.Z` on main promotes the component digests
+# main.yml committed there into `:X.Y.Z`, tags each image `bundle-X.Y.Z` so the
+# components' retention keeps it, then moves `:stable`.
 name: release
 
 on:
@@ -88,3 +89,4 @@ jobs:
       version: ${{ needs.bundle.outputs.version }}
       archive: ${{ needs.bundle.outputs.archive }}
       channel: stable
+      images: ${{ needs.bundle.outputs.images }}

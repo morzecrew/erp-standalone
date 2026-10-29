@@ -225,29 +225,34 @@ decisions:
   - id: D-15
     grade: ASSUMED
     text: >-
-      `scripts/resolve.sh` resolves an image tag to its digest and reads the migrations
-      image's schema label; `scripts/pin.sh` writes the component pins and `database_schema_produces`
-      into `bundle/manifest.yaml`. `components.yaml` names the backend's and frontend's
-      `X.Y.Z`, `rollback_safe` and notes; the migrations follow the backend's version.
-      In release mode `pin.sh` refuses `main` and `sha-*` tags.
+      `scripts/resolve.sh` resolves an image tag or digest to its digest and reads
+      the migrations image's schema label; `scripts/pin.sh` writes the component pins
+      and `database_schema_produces` into `bundle/manifest.yaml`. The dev channel
+      pins each component's `main`, the migrations beside the backend. `scripts/pin.sh
+      --release X.Y.Z` resolves no tag: it keeps each digest the committed manifest
+      pins under the tag `bundle-X.Y.Z`, and refuses a version that is not `X.Y.Z`,
+      the all-zero placeholder and a digest the registry no longer holds. `components.yaml`
+      holds only each component's `rollback_safe`.
     paths: [scripts/**, /components.yaml]
     consequence: >-
-      a dev bundle pins whatever `main` is, and a release is made of component releases
-      only; pinning twice changes nothing
+      a dev bundle pins whatever `main` is, and a release ships the digests the dev
+      channel installed and smoke-tested, never a rebuild; pinning twice changes nothing
     rationale: >-
-      The migrations image always ships with the backend's commit or version. On `main`,
-      backend and migrations rebuild only when their own paths change, so each is
-      resolved, not derived. The release file sits at the root, where the brief had
-      `components/release.yaml`, so the pinning phase spans one module.
+      The migrations image always ships with the backend's commit. On `main`, backend
+      and migrations rebuild only when their own paths change, so each is resolved,
+      not derived. A release used to re-resolve component `X.Y.Z` tags, which rebuilt
+      images no dev machine had run and needed three tags per release (S-0001/A-12).
+    fingerprint: 555964c7768a2e2a/6b0f5a9892461c23
   - id: D-16
     grade: ASSUMED
     text: >-
       `main.yml` builds as `scripts/version.sh` names it (S-0002/D-1): `<next-patch>-dev.<n>.g<sha>`
       of the last commit that changed `bundle/`, a prerelease, and publishes `:<version>`
       then moves `:main`. `release.yml` runs on a tag `vX.Y.Z` on main, refuses one
-      that is not, builds `--version X.Y.Z`, and publishes `:X.Y.Z` then moves `:stable`.
-      `pr.yml` builds `--version 0.0.0-pr.<number>`. Any publish first refuses a version
-      whose tag already exists.
+      that is not, builds `--version X.Y.Z` from the digests the tagged commit pins
+      (D-15), tags each component image `bundle-X.Y.Z` (D-28), and publishes `:X.Y.Z`
+      then moves `:stable`. `pr.yml` builds `--version 0.0.0-pr.<number>`. Any publish
+      first refuses a version whose tag already exists.
     paths: [.github/workflows/**]
     consequence: >-
       `:main` always increases and only `--mode dev` machines take it; a version never
@@ -256,7 +261,7 @@ decisions:
       `--version-from-git` needs a reachable tag (`morzer/internal/release/version.go`),
       hence the owner's seed `v0.0.0`, and refuses a dirty bundle directory, which
       a pull request's uncommitted pin makes.
-    fingerprint: f2b32dbdb6c12b67/a2ae58da4858baa1
+    fingerprint: d020d8b47429a0db/a2ae58da4858baa1
   - id: D-17
     grade: ASSUMED
     text: >-
@@ -324,16 +329,17 @@ decisions:
     grade: ASSUMED
     text: >-
       `renovate.json` bumps the infrastructure images in `bundle/manifest.yaml` through
-      one regex custom manager over `repo:tag@sha256:`, and `components.yaml`'s semver
-      tags through the docker datasource. Its one host rule reads the private packages:
-      `matchHost: ghcr.io`, `hostType: docker`, `username: Misery7100` and `password:
-      "{{ secrets.GHCR_READ_TOKEN }}"`, a repository secret in Mend's developer portal.
+      one regex custom manager over `repo:tag@sha256:`. Its one host rule reads the
+      private packages: `matchHost: ghcr.io`, `hostType: docker`, `username: Misery7100`
+      and `password: "{{ secrets.GHCR_READ_TOKEN }}"`, a repository secret in Mend's
+      developer portal.
     paths: [/renovate.json]
     consequence: >-
       a new infrastructure digest or component release arrives as a pull request;
       merging one and tagging here is a bundle release
     rationale: >-
       Renovate's docker manager does not read `bundle/manifest.yaml`.
+    fingerprint: dd4c33a95b51e87b/930a12b4125eb062
   - id: D-22
     grade: ASSUMED
     text: >-
@@ -414,3 +420,23 @@ decisions:
       The image's own `VITE_APP_VERSION` names a component build, `main` on every
       dev build, and `package.json` says `0.0.1` whatever runs; only the manager knows
       the release.
+  - id: D-28
+    grade: ASSUMED
+    text: >-
+      For a release, `publish.yml` tags each component image the bundle pins `bundle-X.Y.Z`
+      with `oras tag`, after the published-version check and before it pushes `:X.Y.Z`.
+      `bundle.yml`'s build job outputs the three as `images` (`repo@digest`), and
+      `release.yml` passes them on; `main.yml` passes none. erp-standalone holds the
+      Write role under each of the erp-backend, erp-migrations and erp-frontend packages'
+      "Manage Actions access".
+    paths: [.github/workflows/**]
+    consequence: >-
+      an image a release pins outlives the components' retention, so a customer can
+      install or update to any release; a published release never names an image that
+      is not kept
+    rationale: >-
+      `snok/container-retention-policy` v3 deletes a version only when every tag it
+      carries matches its filter (`select_package_versions.rs`), so one tag outside
+      `sha-*` keeps it. `oras tag` puts the same manifest under a new tag, which adds
+      no storage and keeps the digest.
+    cites: [D-15, D-20]

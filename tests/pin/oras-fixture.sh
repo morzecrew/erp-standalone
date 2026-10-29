@@ -15,13 +15,18 @@
 #   oras manifest fetch-config --platform linux/amd64 <repo:tag>
 set -euo pipefail
 
+# A `repo@digest` names its own digest; a tag gets one derived from the
+# reference.
 digest_of() {
-	printf 'sha256:%s\n' "$(printf '%s' "$1" | sha256sum | awk '{print $1}')"
+	case "$1" in
+		*@sha256:*) printf '%s\n' "${1##*@}" ;;
+		*) printf 'sha256:%s\n' "$(printf '%s' "$1" | sha256sum | awk '{print $1}')" ;;
+	esac
 }
 
 is_index() {
 	case "$1" in
-		*/erp-migrations:*) return 0 ;;
+		*/erp-migrations:* | */erp-migrations@*) return 0 ;;
 	esac
 	return 1
 }
