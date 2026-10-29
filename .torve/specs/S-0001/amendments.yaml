@@ -207,3 +207,61 @@ amendments:
       The README stops carrying those workarounds, so a 0.6.0 machine following it
       would end with its timers stopped and no volume helper. Refusing to load there
       is the better failure. No customer machine exists yet.
+  - id: A-9
+    at: '2026-10-29T06:49:39Z'
+    title: the bundle can turn the assistant on
+    changes:
+      - subject: D-8
+        field: text
+        before: >-
+          `valkey_password` is generated (`password`); `access_secret_key`, `refresh_pepper`
+          and `api_key_pepper` are generated `base64` of 32 bytes; `postgres_password`
+          and `rustfs_secret_key` are generated `password` of 32 (S-0003/D-1); `admin_password`
+          is set by the operator. `api_key_pepper` and `postgres_password` have no
+          `rotation_period`.
+        after: >-
+          `valkey_password` is generated (`password`); `access_secret_key`, `refresh_pepper`
+          and `api_key_pepper` are generated `base64` of 32 bytes; `postgres_password`
+          and `rustfs_secret_key` are generated `password` of 32 (S-0003/D-1); `assistant_api_key`
+          is generated `password` of 32, a placeholder the operator replaces with
+          the endpoint's key to turn the assistant on; `admin_password` is set by
+          the operator. `api_key_pepper` and `postgres_password` have no `rotation_period`.
+      - subject: D-8
+        field: fingerprint
+        before: ffdce6038f960d37/a42b45ae3c100f0f
+        after: 4e4d8060e81c4c8a/a42b45ae3c100f0f
+    md: >-
+      erp-backend's assistant chat is off until `ASSISTANT__ENABLED`, and its API
+      refuses to start when it is on with no key. The bundle set neither, so every
+      install hid the «Ассистент» tab. The backend and worker now read `ASSISTANT__API_KEY_FILE`.
+      Compose starts no service whose secret file is missing, and envfile-exec exits
+      78 on a file it cannot read, so the file must always exist: `init` generates
+      a placeholder, which the operator replaces with the endpoint's key. morzer generates
+      secrets only at `init`, so a machine installed earlier runs `morzer secret generate
+      assistant_api_key` once before the update; the README says so, and the smoke
+      update does it.
+  - id: A-10
+    at: '2026-10-29T06:49:40Z'
+    title: the assistant's parameters
+    changes:
+      - subject: D-25
+        field: text
+        before: >-
+          The parameters are `http_port` (80), `https_port` (443) and `health_port`
+          (8081) for `edge`, `api_workers` (2) for `backend`, and `log_level` (`debug`,
+          `info`, `warning`, `error`; `info`) for `backend` and `worker`.
+        after: >-
+          The parameters are `http_port` (80), `https_port` (443) and `health_port`
+          (8081) for `edge`, `api_workers` (2) for `backend`, `log_level` (`debug`,
+          `info`, `warning`, `error`; `info`) for `backend` and `worker`, and the
+          assistant's `assistant_enabled` (`false`), `assistant_base_url` (`https://api.deepseek.com`)
+          and `assistant_model` (`deepseek-flash`) for `backend` and `worker`.
+      - subject: D-25
+        field: fingerprint
+        after: 074ad7b741624e6b/b6b3b43e2ac1f7b1
+    md: >-
+      The assistant's switch, endpoint and model are parameters, so turning it on
+      or moving it to another OpenAI-compatible host is `morzer config set`, which
+      re-creates the backend and the worker. The defaults are erp-backend's own. Turning
+      it on sends the questions, and the data the assistant's tools read, to that
+      endpoint.

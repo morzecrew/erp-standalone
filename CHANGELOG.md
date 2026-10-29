@@ -42,6 +42,13 @@ head of `main`; the first tagged release seals this section under its version.
   fresh install and on an update, signs it with minisign and publishes it to
   `ghcr.io/morzecrew/erp-standalone` behind a rolling `:main` dev channel and
   immutable `X.Y.Z` releases on a rolling `:stable` channel.
+- The «Ассистент» chat can be turned on. It is off by default; the operator
+  sets `assistant_api_key` and `assistant_enabled=true`, and
+  `assistant_base_url` and `assistant_model` choose the endpoint. A machine
+  installed earlier runs `sudo morzer secret generate assistant_api_key` once
+  before updating.
+- The backend and the frontend report their health, so `morzer status` shows
+  them healthy or unhealthy rather than only running.
 
 ### Changed
 

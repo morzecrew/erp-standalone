@@ -119,8 +119,10 @@ decisions:
     text: >-
       `valkey_password` is generated (`password`); `access_secret_key`, `refresh_pepper`
       and `api_key_pepper` are generated `base64` of 32 bytes; `postgres_password`
-      and `rustfs_secret_key` are generated `password` of 32 (S-0003/D-1); `admin_password`
-      is set by the operator. `api_key_pepper` and `postgres_password` have no `rotation_period`.
+      and `rustfs_secret_key` are generated `password` of 32 (S-0003/D-1); `assistant_api_key`
+      is generated `password` of 32, a placeholder the operator replaces with the
+      endpoint's key to turn the assistant on; `admin_password` is set by the operator.
+      `api_key_pepper` and `postgres_password` have no `rotation_period`.
     paths: [bundle/secrets.schema.yaml]
     consequence: >-
       `doctor` reports an unset operator secret as a failure, and nothing suggests
@@ -130,7 +132,7 @@ decisions:
       morzer's `base64` length is the count of random bytes, StdEncoding, which the
       backend's `b64decode(validate=True)` reads. Postgres reads its password file
       only at initdb.
-    fingerprint: ffdce6038f960d37/a42b45ae3c100f0f
+    fingerprint: 4e4d8060e81c4c8a/a42b45ae3c100f0f
   - id: D-9
     grade: ASSUMED
     text: >-
@@ -373,10 +375,13 @@ decisions:
     grade: ASSUMED
     text: >-
       The parameters are `http_port` (80), `https_port` (443) and `health_port` (8081)
-      for `edge`, `api_workers` (2) for `backend`, and `log_level` (`debug`, `info`,
-      `warning`, `error`; `info`) for `backend` and `worker`.
+      for `edge`, `api_workers` (2) for `backend`, `log_level` (`debug`, `info`, `warning`,
+      `error`; `info`) for `backend` and `worker`, and the assistant's `assistant_enabled`
+      (`false`), `assistant_base_url` (`https://api.deepseek.com`) and `assistant_model`
+      (`deepseek-flash`) for `backend` and `worker`.
     paths: [bundle/manifest.yaml]
     consequence: >-
       changing a port re-creates the edge alone, and the health checks follow the
       health port
     rationale: Each API worker takes about 300 MB.
+    fingerprint: 074ad7b741624e6b/b6b3b43e2ac1f7b1

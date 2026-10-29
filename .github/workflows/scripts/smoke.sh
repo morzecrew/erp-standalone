@@ -208,6 +208,10 @@ install)
 	;;
 update)
 	[ $# -eq 2 ] || die "usage: smoke.sh update <archive>"
+	# A machine installed before the bundle declared assistant_api_key has no
+	# value for it, and only `init` generates: the README's one-time step.
+	sudo morzer secret list --json | jq -e '[.. | objects | .name? // empty] | index("assistant_api_key")' >/dev/null \
+		|| sudo morzer secret generate assistant_api_key
 	sudo morzer --verbose update "$2"
 	;;
 probe) probe ;;

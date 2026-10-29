@@ -224,6 +224,9 @@ argv is world-readable through `/proc`.
 | `access_secret_key` | backend, worker | 65532 |
 | `refresh_pepper` | backend, worker | 65532 |
 | `api_key_pepper` | backend, worker | 65532 |
+| `assistant_api_key` | backend, worker | 65532 |
+
+`assistant_api_key` is a placeholder until you turn the assistant on (below).
 
 The backend, worker and bootstrap run as user 65532, and the pgbouncer and
 rustfs images read their secrets as root before dropping to their own user, so
@@ -245,6 +248,30 @@ secret as a failure before you apply. `api_key_pepper` has no rotation period �
 rotating it revokes every API key — and neither does `postgres_password` or
 `rustfs_secret_key`; changing the database password is the procedure below,
 not a timer.
+
+## The assistant
+
+The «Ассистент» chat is off, and its tab hidden, until you turn it on. Its
+questions, and the ERP data its tools read to answer them, go to the
+OpenAI-compatible endpoint you name, DeepSeek's own by default.
+
+```console
+sudo morzer secret set assistant_api_key  # the endpoint's key, from stdin
+sudo morzer config set assistant_enabled=true
+# Another endpoint or model:
+sudo morzer config set assistant_base_url=https://<host>/v1 assistant_model=<model>
+```
+
+`config set assistant_enabled=false` turns it off again.
+
+A machine installed before the bundle declared `assistant_api_key` has no
+value for it, because only `init` generates secrets: an update to a bundle
+that declares it stops at loading the secrets, before anything is rendered or
+started, with `required secret(s) not set`. Run this once, before that update:
+
+```console
+sudo morzer secret generate assistant_api_key
+```
 
 ## Updating
 
