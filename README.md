@@ -503,7 +503,8 @@ public key that signed the `--from` bundle must be in `REHEARSE_PUBKEY`.
 
 The workflows here are thin callers of
 [morzecrew/bundle-ci](https://github.com/morzecrew/bundle-ci)'s reusable
-workflows, pinned to one bundle-ci commit; what only this bundle checks lives in
+workflows, pinned to one bundle-ci release by its commit (`# v0.1.1` beside
+each); what only this bundle checks lives in
 `.github/smoke.d`. Every workflow job runs on `${{ vars.RUNS_ON || 'ubuntu-24.04' }}`: the
 repository variable `RUNS_ON` names the runner label — `self-hosted` today —
 and, unset, the jobs run on GitHub-hosted `ubuntu-24.04` with the same steps.
