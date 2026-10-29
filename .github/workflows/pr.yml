@@ -18,7 +18,7 @@ jobs:
     permissions:
       contents: read
       packages: read
-    uses: morzecrew/bundle-ci/.github/workflows/bundle.yml@b591ce4f428650962b751c4c8e23179b633fbdbd
+    uses: morzecrew/bundle-ci/.github/workflows/bundle.yml@fc8617187be11e7313f5a214b31fb10f5244b287
     with:
       ref: ${{ github.sha }}
       version: 0.0.0-pr.${{ github.event.pull_request.number }}
@@ -28,4 +28,4 @@ jobs:
       operator-secrets: admin_password
       # smoke-update installs the published :main first, trusting this key.
       dev-pubkey: ${{ vars.MINISIGN_DEV_PUBKEY }}
-      bundle-ci-ref: b591ce4f428650962b751c4c8e23179b633fbdbd
+      bundle-ci-ref: fc8617187be11e7313f5a214b31fb10f5244b287
