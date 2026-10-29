@@ -30,7 +30,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    uses: morzecrew/bundle-ci/.github/workflows/pin.yml@f961b7872cd2051f9f3111bdea6aef8746940826 # v0.1.1
+    uses: morzecrew/bundle-ci/.github/workflows/pin.yml@729188c93dc336c6a139a72472a48aece880492b # v0.1.2
     with:
       runs-on: ${{ vars.RUNS_ON || 'ubuntu-24.04' }}
 
@@ -39,7 +39,7 @@ jobs:
     permissions:
       contents: read
       packages: read
-    uses: morzecrew/bundle-ci/.github/workflows/bundle.yml@f961b7872cd2051f9f3111bdea6aef8746940826 # v0.1.1
+    uses: morzecrew/bundle-ci/.github/workflows/bundle.yml@729188c93dc336c6a139a72472a48aece880492b # v0.1.2
     with:
       ref: ${{ needs.pin.outputs.sha }}
       channel: main
@@ -58,7 +58,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: morzecrew/bundle-ci/.github/workflows/publish.yml@f961b7872cd2051f9f3111bdea6aef8746940826 # v0.1.1
+    uses: morzecrew/bundle-ci/.github/workflows/publish.yml@729188c93dc336c6a139a72472a48aece880492b # v0.1.2
     with:
       version: ${{ needs.bundle.outputs.version }}
       archive: ${{ needs.bundle.outputs.archive }}
