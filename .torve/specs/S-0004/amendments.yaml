@@ -135,3 +135,74 @@ amendments:
       now add the workspace to git's global `safe.directory` right after checkout.
       `scripts/version.sh` reads git with its errors silenced, so without this the
       build would have stamped a wrong version rather than failed.
+  - id: A-5
+    at: '2026-10-29T18:53:11Z'
+    title: the job container is bundle-ci's
+    changes:
+      - subject: D-2
+        field: retired
+        before: >-
+          .github/workflows/*.yml .github/workflows/scripts/install-tools.sh
+        after: >-
+          the pipeline and its scripts are bundle-ci's now (S-0001/D-29)
+    md: >-
+      The pipeline moved to morzecrew/bundle-ci (S-0001/D-29): this repository calls
+      its reusable workflows and keeps only the callers, components.yaml and its smoke
+      hooks. Every job's container and its cleanup are bundle-ci's.
+  - id: A-6
+    at: '2026-10-29T18:53:12Z'
+    title: ghcr credentials are bundle-ci's
+    changes:
+      - subject: D-3
+        field: retired
+        before: .github/workflows/*.yml
+        after: >-
+          the pipeline and its scripts are bundle-ci's now (S-0001/D-29)
+    md: >-
+      The pipeline moved to morzecrew/bundle-ci (S-0001/D-29): this repository calls
+      its reusable workflows and keeps only the callers, components.yaml and its smoke
+      hooks. Logging in to ghcr is bundle-ci's.
+  - id: A-7
+    at: '2026-10-29T18:53:13Z'
+    title: resolving digests is bundle-ci's
+    changes:
+      - subject: D-4
+        field: retired
+        before: scripts/resolve.sh .github/workflows/main.yml
+        after: >-
+          the pipeline and its scripts are bundle-ci's now (S-0001/D-29)
+    md: >-
+      The pipeline moved to morzecrew/bundle-ci (S-0001/D-29): this repository calls
+      its reusable workflows and keeps only the callers, components.yaml and its smoke
+      hooks. Reading digests and labels with oras is bundle-ci's.
+  - id: A-8
+    at: '2026-10-29T18:53:39Z'
+    title: >-
+      4 path-rotted row(s) retired by `torve spec check --fix-rot`
+    changes:
+      - subject: D-5
+        field: retired
+        before: >-
+          .github/workflows/bundle.yml .github/workflows/scripts/rig.sh
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-6
+        field: retired
+        before: >-
+          .github/workflows/scripts/rig.sh .github/workflows/scripts/smoke.sh
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-7
+        field: retired
+        before: scripts/rehearse.sh
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-8
+        field: retired
+        before: .github/workflows/bundle.yml
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+    md: >-
+      The pipeline moved to morzecrew/bundle-ci (S-0001/D-29): this repository calls
+      its reusable workflows and keeps only the callers, components.yaml and its smoke
+      hooks. The rig, the smoke jobs and the rehearsal are bundle-ci's.

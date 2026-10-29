@@ -14,7 +14,7 @@
   ],
   "packageRules": [
     {
-      "description": "The component pins in the manifest follow main and are written by scripts/pin.sh",
+      "description": "The component pins in the manifest follow main and are written by bundle-ci's pin.sh",
       "matchFileNames": ["bundle/manifest.yaml"],
       "matchPackageNames": [
         "ghcr.io/morzecrew/erp-backend",

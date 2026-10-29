@@ -1,6 +1,7 @@
 # A pull request's bundle, pinned to every component's `main`, built and
 # smoke-tested, and never published. It signs with a key made in the job: the
-# dev and release keys are never given to a pull request.
+# dev and release keys are never given to a pull request. The jobs are
+# bundle-ci's.
 name: pr
 
 on:
@@ -17,9 +18,14 @@ jobs:
     permissions:
       contents: read
       packages: read
-    uses: ./.github/workflows/bundle.yml # zizmor: ignore[self-repository] -- actionlint reads only ./
+    uses: morzecrew/bundle-ci/.github/workflows/bundle.yml@2ba5b130e5b8139d00f1cb9a2a16ad5d3939d0e0
     with:
       ref: ${{ github.sha }}
       version: 0.0.0-pr.${{ github.event.pull_request.number }}
       pin: dev
       signing: ephemeral
+      runs-on: ${{ vars.RUNS_ON || 'ubuntu-24.04' }}
+      operator-secrets: admin_password
+      # smoke-update installs the published :main first, trusting this key.
+      dev-pubkey: ${{ vars.MINISIGN_DEV_PUBKEY }}
+      bundle-ci-ref: 2ba5b130e5b8139d00f1cb9a2a16ad5d3939d0e0

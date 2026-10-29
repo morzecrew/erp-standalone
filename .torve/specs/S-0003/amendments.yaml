@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-29T18:53:39Z'
+    title: >-
+      2 path-rotted row(s) retired by `torve spec check --fix-rot`
+    changes:
+      - subject: D-4
+        field: retired
+        before: .github/workflows/scripts/smoke.sh
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-6
+        field: retired
+        before: >-
+          .github/workflows/scripts/smoke.sh .github/workflows/bundle.yml scripts/rehearse.sh
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+    md: >-
+      The pipeline moved to morzecrew/bundle-ci (S-0001/D-29): this repository calls
+      its reusable workflows and keeps only the callers, components.yaml and its smoke
+      hooks. The password rotation is now the smoke hook `.github/smoke.d/30-rotate-db-password.sh`,
+      and the rehearsal is bundle-ci's.

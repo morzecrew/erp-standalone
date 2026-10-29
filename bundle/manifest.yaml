@@ -80,7 +80,7 @@ parameters:
     services: [backend, worker]
 # Infrastructure pinned by digest as `repo:tag@sha256:`, the tag kept for
 # Renovate. The three components carry `main` and an all-zero digest until
-# scripts/pin.sh writes their real digests.
+# bundle-ci's pin.sh writes their real digests.
 images:
   postgres: ghcr.io/morzecrew/postgres:18.6@sha256:4a8e0a615b016b4eca04b391a76eb98af770cae540a1fa57e1980bc9909a51de
   pgbouncer: ghcr.io/morzecrew/pgbouncer:1.26.1@sha256:e635cf38f11976fc6e661eece67206786645fc54be3994b3ba4509462268f5cc
@@ -164,7 +164,7 @@ health:
       start_period: 120s
 compatibility:
   # The migrations image's `tech.morze.erp.schema` label, written by
-  # scripts/pin.sh; 0 until it runs. Each release reads only the schema it
+  # bundle-ci's pin.sh; 0 until it runs. Each release reads only the schema it
   # produces.
   database_schema_produces: 34
   database_schema_min: 34
@@ -173,9 +173,9 @@ compatibility:
   # `produces` -- morzer rolls back, and returns from a failed update by itself
   # (exit 11). Across a schema change it refuses the rollback, naming the
   # pre-update backup, and a failed update stops at exit 12 for a restore.
-  # `scripts/pin.sh --release` writes this from components.yaml's
+  # bundle-ci's `pin.sh --release` writes this from components.yaml's
   # `backend.rollback_safe` and `frontend.rollback_safe` together, true only
-  # when both are; plain `scripts/pin.sh` leaves it as committed.
+  # when both are; a plain pin leaves it as committed.
   rollback_safe: true
   # The first manager that reads `tasks:`, and whose `update` generates a
   # secret a release adds.

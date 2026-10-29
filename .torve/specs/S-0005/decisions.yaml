@@ -15,26 +15,6 @@ decisions:
       and no customer machine exists yet.
     cites: [S-0001/D-1]
     fingerprint: c5e7c000ca11397d/b6b3b43e2ac1f7b1
-  - id: D-2
-    grade: ASSUMED
-    text: >-
-      `install-tools.sh` installs morzer 0.9.0, the manager the dev VM runs, verified
-      as today against its release's `SHA256SUMS` and that file's minisign signature
-      under the unchanged `MORZER_PUBKEY`. The manifest still requires 0.8.0 (D-1).
-    paths: [.github/workflows/scripts/install-tools.sh]
-    consequence: >-
-      every CI job and every rig runs the manager the dev VM runs, which reads every
-      bundle that needs 0.8.0; nothing in CI runs 0.8.0 itself
-    fingerprint: 72a21472c96cdd79/f769c5b05fe880e9
-  - id: D-3
-    grade: ASSUMED
-    text: >-
-      `smoke.sh install` no longer pulls the volume helper; morzer 0.7.0's `apply`
-      and `update` pull the pinned one themselves (morzer#142).
-    paths: [.github/workflows/scripts/smoke.sh]
-    consequence: >-
-      the smoke tests prove that a networked machine's first backup works with no
-      pull by hand
   - id: D-4
     grade: ASSUMED
     text: >-
@@ -59,3 +39,4 @@ decisions:
     consequence: >-
       an operator reading the release learns to upgrade morzer first
     fingerprint: 8f2f1b5463b7f6bb/41f28b48b6259dfe
+retired: [D-2, D-3]

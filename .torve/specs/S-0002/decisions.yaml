@@ -1,42 +1,5 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-1
-    grade: ASSUMED
-    text: >-
-      `scripts/version.sh` prints the dev version of the bundle at HEAD. It takes
-      the last commit that changed `bundle/` (`git log -1 --format=%H -- bundle`)
-      and describes it with `git describe --tags --long`, as `vX.Y.Z-N-g<sha>`. From
-      that it prints `X.Y.(Z+1)-dev.N.g<sha>`, for every N including 0, with the sha
-      as git abbreviates it. It refuses, exiting non-zero with the reason on stderr,
-      in four cases: no commit changed `bundle/`; no tag is reachable from that commit;
-      the nearest tag is not `X.Y.Z` or `vX.Y.Z`; or `git status --porcelain --untracked-files=all
-      -- bundle` reports anything. `VERSION_ROOT` names the repository (default: the
-      one the script is in), as `PIN_ROOT` does for `pin.sh`.
-    paths: [scripts/version.sh, tests/version/**]
-    consequence: >-
-      Two commits with one `bundle/` name one version, and a commit outside `bundle/`
-      names the version already built; the dev channel never names a bare `X.Y.Z`,
-      so it cannot take a version `release.yml` will publish
-    rationale: >-
-      morzer's own scheme (`internal/release/version.go`) describes HEAD, and a dirty
-      tree there is refused for the same reason: the version must describe the bytes
-      packed. On a tag it prints the tag verbatim, which on the dev channel would
-      publish `X.Y.Z` with `main` components before `release.yml` could.
-  - id: D-2
-    grade: ASSUMED
-    text: >-
-      `bundle.yml`'s build step stamps `--version "$(scripts/version.sh)"` when its
-      `version` input is empty, in place of `--version-from-git`. `main.yml` keeps
-      `on-existing: skip`, and keeps building HEAD with HEAD's workflow scripts.
-    paths: [.github/workflows/bundle.yml]
-    consequence: >-
-      A scheduled or dispatched `main.yml` run after a commit outside `bundle/` finds
-      its version published and publishes nothing; a pin commit publishes a new version
-    rationale: >-
-      S-0001's goal was that a run with nothing new publishes nothing, and S-0001/D-16's
-      `--version-from-git` counts every commit. Building an older checkout instead
-      would run that commit's `smoke.sh`, so a script fix would never reach it.
-    cites: [S-0001/D-16]
   - id: D-3
     grade: ASSUMED
     text: >-
@@ -64,11 +27,11 @@ decisions:
   - id: D-4
     grade: ASSUMED
     text: >-
-      The committed manifest declares `compatibility.rollback_safe: true`. `scripts/pin.sh
-      --release` writes `rollback_safe` as `components.yaml`'s `backend.rollback_safe`
+      The committed manifest declares `compatibility.rollback_safe: true`. bundle-ci's
+      `pin.sh --release` writes `rollback_safe` as `components.yaml`'s `backend.rollback_safe`
       and `frontend.rollback_safe` together, true only when both are, and refuses
-      a value that is not `true` or `false`. Plain `pin.sh` leaves it as committed.
-    paths: [bundle/manifest.yaml, bundle/RELEASE.md, scripts/pin.sh, tests/pin/**]
+      a value that is not `true` or `false`. A plain pin leaves it as committed.
+    paths: [bundle/manifest.yaml, bundle/RELEASE.md, /components.yaml]
     consequence: >-
       Between two releases on one schema, morzer rolls back, and returns from a failed
       update by itself (exit 11). Across a schema change, because `database_schema_min`
@@ -82,77 +45,7 @@ decisions:
       returned to the previous release, and `rollback` succeeded. Supersedes S-0001/D-13's
       `rollback_safe: false`.
     cites: [S-0001/D-13, S-0001/D-15]
-  - id: D-5
-    grade: ASSUMED
-    text: >-
-      `.github/workflows/scripts/smoke.sh` gains two steps. `backup-restore` writes
-      the marker `before` into a table `smoke_marker` in the `erp` database and into
-      the Valkey key `smoke:marker`. It takes `morzer backup --reason smoke` and writes
-      `after` into both. Then it runs `morzer restore --backup <that id> --force --confirm
-      <installation id>`, with the id read from `morzer status --json`, and fails
-      unless both markers read `before`. `rollback <published archive> <new archive>`
-      runs `morzer rollback`. It passes when the rollback succeeds, and when it exits
-      9 while the new archive's `manifest.yaml` declares `rollback_safe: false` or
-      the two archives declare different `database_schema_produces`; it fails otherwise.
-      Both reach Postgres and Valkey with `docker exec`, finding each container by
-      its Compose labels. `smoke-install` runs `backup-restore` then `probe` after
-      its probe, and `smoke-update` runs `rollback` then `probe` after the update's
-      probe. `install` pulls morzer's volume helper only when the daemon lacks it.
-    paths: [.github/workflows/scripts/smoke.sh, .github/workflows/bundle.yml]
-    consequence: >-
-      Every bundle CI builds has restored its own backup and rolled back to the published
-      one, or been refused for the right reason, before it can be published
-    rationale: >-
-      The rehearsal proved these by hand. Only CI repeats them for every bundle, on
-      the runner as root, as S-0001/D-19's smoke tests do.
-    cites: [S-0001/D-19]
-    fingerprint: 890f2767114ac958/d84aefac59d98a08
-  - id: D-6
-    grade: ASSUMED
-    text: >-
-      `bundle.yml`'s `smoke-update` installs the published bundle of the channel its
-      caller publishes to, and then updates to the new one: `:stable` when `inputs.channel`
-      is `stable`, trusting `vars.MINISIGN_RELEASE_PUBKEY`; otherwise `:main`, trusting
-      `vars.MINISIGN_DEV_PUBKEY`. The new bundle's key is trusted beside it. When
-      that tag does not exist, it says so in a notice and proves only the fresh install.
-    paths: [.github/workflows/bundle.yml]
-    consequence: >-
-      `release.yml` proves the path a customer takes, from the last release to this
-      one; `main.yml` and `pr.yml` keep proving the dev VM's
-    rationale: >-
-      S-0001/D-19 installed `:main` everywhere, so a release was tested over a dev
-      build that no customer runs.
-    cites: [S-0001/D-19]
-  - id: D-7
-    grade: ASSUMED
-    text: >-
-      `scripts/rehearse.sh [--from <oci ref>] [--keep]` rehearses on a workstation
-      what `smoke-install` and `smoke-update` prove on the runner. It starts a privileged
-      `docker:29.7.2-dind` container with a Docker volume for its `/var/lib/docker`,
-      named `erp-rehearsal`. It installs into the container the tools `.github/workflows/scripts/install-tools.sh`
-      pins and verifies (`morzer`, `sops`, `age`), and `bash`, `curl`, `jq`, `openssl`,
-      `sudo`, GNU `tar`, `zstd` and `minisign` from Alpine. It builds the working
-      tree's `bundle/` inside the container as `0.0.0-rehearsal.<unix time>` and signs
-      it with a key made there. It fetches the `--from` bundle (default `ghcr.io/morzecrew/erp-standalone:main`)
-      with `oras pull` on the workstation. Each image either manifest pins, and morzer's
-      volume helper, is copied with `oras copy --to-oci-layout` on the workstation;
-      the layout keeps only its tagged index, named `<repository>@<digest>` in its
-      `io.containerd.image.name` annotation, and is loaded into the container with
-      `docker load`. In the container it runs `smoke.sh install`, `probe`, `backup-restore`,
-      `update`, `probe`, `rollback` and `probe`, and `diagnose` on a failure. Unless
-      `--keep`, it removes the container and its volume. It refuses a `yq` that is
-      not mikefarah's v4, and `--help` prints the usage and what the workstation needs:
-      `docker`, `oras` logged in to ghcr, and that `yq`.
-    paths: [scripts/rehearse.sh]
-    consequence: >-
-      An operator tries a bundle's install, backup, restore, update and rollback before
-      opening a pull request, and no credential enters the container
-    rationale: >-
-      Rehearsed by hand on 2026-10-24. A `docker save` from a daemon with the classic
-      image store drops the registry digest the manifest pins (morzer's `ingest.go`
-      measured it). A containerd store loads an OCI layout under the annotated name
-      and answers the digest reference, so no login is needed inside.
-    fingerprint: 207c7604f45814ec/29e2710794513f3f
+    fingerprint: 6a3a8600fa2e1e86/f486237bfe44abb8
   - id: D-8
     grade: ASSUMED
     text: >-
@@ -197,3 +90,4 @@ decisions:
       at exit 12. Rehearsed on 2026-10-24: clients were refused for about 27 s after
       Postgres was ready, and for about 2 s with these settings. The platform pgbouncer
       image allows all three keys.
+retired: [D-1, D-2, D-5, D-6, D-7]

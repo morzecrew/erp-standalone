@@ -2,13 +2,6 @@
 
 ## Decisions governing the repository root
 
-### S-0001/D-15 — `ASSUMED` (erp-standalone as a morzer release bundle of the whole ERP)
-
-`scripts/resolve.sh` resolves an image tag or digest to its digest and reads the migrations image's schema label; `scripts/pin.sh` writes the component pins and `database_schema_produces` into `bundle/manifest.yaml`. The dev channel pins each component's `main`, the migrations beside the backend. `scripts/pin.sh --release X.Y.Z` resolves no tag: it keeps each digest the committed manifest pins under the tag `bundle-X.Y.Z`, and refuses a version that is not `X.Y.Z`, the all-zero placeholder and a digest the registry no longer holds. `components.yaml` holds only each component's `rollback_safe`.
-
-- Paths: `scripts/**` `/components.yaml`
-- Consequence: a dev bundle pins whatever `main` is, and a release ships the digests the dev channel installed and smoke-tested, never a rebuild; pinning twice changes nothing
-
 ### S-0001/D-21 — `ASSUMED` (erp-standalone as a morzer release bundle of the whole ERP)
 
 `renovate.json` bumps the infrastructure images in `bundle/manifest.yaml` through one regex custom manager over `repo:tag@sha256:`. Its one host rule reads the private packages: `matchHost: ghcr.io`, `hostType: docker`, `username: Misery7100` and `password: "{{ secrets.GHCR_READ_TOKEN }}"`, a repository secret in Mend's developer portal.
@@ -22,6 +15,13 @@ The README covers installing on a dev VM following `:main` and a customer VM fol
 
 - Paths: `/README.md` `/CHANGELOG.md`
 - Consequence: an operator can run both channels from the README alone, and a manual prune never deletes the previous release's images or the backup helper
+
+### S-0002/D-4 — `ASSUMED` (A dev version per bundle change, and the operations rehearsed)
+
+The committed manifest declares `compatibility.rollback_safe: true`. bundle-ci's `pin.sh --release` writes `rollback_safe` as `components.yaml`'s `backend.rollback_safe` and `frontend.rollback_safe` together, true only when both are, and refuses a value that is not `true` or `false`. A plain pin leaves it as committed.
+
+- Paths: `bundle/manifest.yaml` `bundle/RELEASE.md` `/components.yaml`
+- Consequence: Between two releases on one schema, morzer rolls back, and returns from a failed update by itself (exit 11). Across a schema change, because `database_schema_min` = `max` = `produces`, it refuses a rollback, naming the pre-update backup, and a failed update stops at exit 12 for a restore
 
 ### S-0002/D-8 — `ASSUMED` (A dev version per bundle change, and the operations rehearsed)
 
@@ -72,9 +72,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `bundle/compose/` — 12 decision(s)
 - `bundle/edge/` — 1 decision(s)
 - `bundle/hooks/` — 3 decision(s)
-- `scripts/` — 7 decision(s)
+- `scripts/` — 0 decision(s)
 - `tests/compose/` — 0 decision(s)
-- `tests/pin/` — 1 decision(s)
-- `tests/version/` — 1 decision(s)
 
 <!-- /torve:managed -->
