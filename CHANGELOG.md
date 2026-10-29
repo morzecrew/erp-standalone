@@ -51,6 +51,9 @@ head of `main`; the first tagged release seals this section under its version.
   empty database with demo data on a dev machine and is refused on a
   production one, and `morzer task run repair` gives back to free stock what
   closed or deleted plans still hold.
+- The frontend's sidebar names the release a machine runs, for example
+  `v0.0.1-dev.37.g311d7ec`, with the frontend's and the backend's builds in its
+  tooltip.
 
 ### Changed
 
