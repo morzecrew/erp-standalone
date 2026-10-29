@@ -204,6 +204,10 @@ older manager refuses a bundle that needs 0.8.0 and names the version it needs.
 On a machine set up under 0.6.0 whose timers never started, run
 `sudo morzer init --repair` once, or reboot; either starts them.
 
+CI and the dev VM run morzer 0.9.0, and the bundle still needs only 0.8.0.
+0.9.0 moves an installation's state to schema 13, and a 0.8.x manager then
+refuses it, so a machine upgraded to 0.9.0 cannot go back to 0.8.x.
+
 ## The operator secrets
 
 Every secret lives encrypted in the installation's `secrets.sops.yaml` and is
