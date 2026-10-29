@@ -206,3 +206,32 @@ amendments:
       The pipeline moved to morzecrew/bundle-ci (S-0001/D-29): this repository calls
       its reusable workflows and keeps only the callers, components.yaml and its smoke
       hooks. The rig, the smoke jobs and the rehearsal are bundle-ci's.
+  - id: A-9
+    at: '2026-10-29T22:40:20Z'
+    title: >-
+      A self-hosted runner keeps bundle-ci's image cache
+    changes:
+      - subject: D-9
+        field: text
+        before: >-
+          The README's CI section names `RUNS_ON` and its fallback, and what a runner
+          needs: amd64, a Docker that allows privileged containers, room for one rig
+          (the release's 20 GiB preflight under `/var/lib/erp` and the bundle's images),
+          no `sudo` for its user, and, when it sets `http(s)_proxy`, an address containers
+          reach rather than loopback.
+        after: >-
+          The README's CI section names `RUNS_ON` and its fallback, and what a runner
+          needs: amd64, a Docker that allows privileged containers, room for one rig
+          (the release's 20 GiB preflight under `/var/lib/erp` and the bundle's images),
+          on a self-hosted runner room for bundle-ci's image cache under `~/.cache/bundle-ci/oci`
+          (the bundle's private images, readable by the runner's user, off with `image-cache:
+          false`), no `sudo` for its user, and, when it sets `http(s)_proxy`, an address
+          containers reach rather than loopback.
+      - subject: D-9
+        field: fingerprint
+        before: 348f988be0741f8a/f4289ae7acd4559a
+        after: 9c2edaa4f9b72f63/f4289ae7acd4559a
+    md: >-
+      bundle-ci v0.2.0 keeps every image a bundle pins on a self-hosted runner's disk
+      and loads the smoke rigs from it, so a runner needs room for that cache too,
+      and its user can read the bundle's private images there.

@@ -503,7 +503,7 @@ public key that signed the `--from` bundle must be in `REHEARSE_PUBKEY`.
 
 The workflows here are thin callers of
 [morzecrew/bundle-ci](https://github.com/morzecrew/bundle-ci)'s reusable
-workflows, pinned to one bundle-ci release by its commit (`# v0.1.2` beside
+workflows, pinned to one bundle-ci release by its commit (`# v0.2.0` beside
 each); what only this bundle checks lives in
 `.github/smoke.d`. Every workflow job runs on `${{ vars.RUNS_ON || 'ubuntu-24.04' }}`: the
 repository variable `RUNS_ON` names the runner label — `self-hosted` today —
@@ -518,6 +518,11 @@ A runner, self-hosted or GitHub-hosted, needs:
   volume, and bundle-ci's `rehearse.sh` uses the same rig on a workstation.
 - **Room for one rig:** the release's 20 GiB preflight under `/var/lib/erp`
   plus the bundle's images, all held by that rig's container and volume.
+- **On a self-hosted runner, room for an image cache.** The smoke jobs keep
+  every image the bundle pins, amd64 only, under `~/.cache/bundle-ci/oci`, and
+  ask the registry only for what the runner has not seen; entries unused for
+  14 days go. They are this bundle's private images, readable by the runner's
+  user. `image-cache: false` on the `bundle.yml` jobs turns the cache off.
 - **No `sudo` for its user.** Jobs install their tools in a job container, in
   a rig, or under `$RUNNER_TEMP`, and each container job hands the workspace
   back to the runner's user when it ends.
