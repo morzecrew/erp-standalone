@@ -18,7 +18,7 @@ on:
         type: string
         default: ""
       pin:
-        description: "Pin the components first: none, dev (their main) or release (components.yaml)"
+        description: "Pin the components first: none, dev (their main) or release (the committed pins, promoted to `version`)"
         type: string
         default: none
       channel:
@@ -47,6 +47,9 @@ on:
       proceed:
         description: "'true' when the version is not published yet; the caller needs this workflow, so its smoke tests have passed"
         value: ${{ jobs.build.outputs.proceed }}
+      images:
+        description: "The component images the bundle pins, as space-separated `repo@digest`"
+        value: ${{ jobs.build.outputs.images }}
 
 permissions: {}
 
@@ -69,6 +72,7 @@ jobs:
       archive: ${{ steps.archive.outputs.archive }}
       pubkey: ${{ steps.sign.outputs.pubkey }}
       proceed: ${{ steps.existing.outputs.proceed }}
+      images: ${{ steps.archive.outputs.images }}
     steps:
       - name: Install git, curl, ca-certificates and jq
         run: |
@@ -105,10 +109,11 @@ jobs:
         if: inputs.pin != 'none'
         env:
           PIN: ${{ inputs.pin }}
+          VERSION: ${{ inputs.version }}
         run: |
           case "${PIN}" in
           dev) scripts/pin.sh ;;
-          release) scripts/pin.sh --release ;;
+          release) scripts/pin.sh --release "${VERSION}" ;;
           *) echo "::error::unknown pin mode '${PIN}'"; exit 1 ;;
           esac
 
@@ -204,6 +209,7 @@ jobs:
           fi
           digest=$(jq -r '.data.digest' <<<"${out}")
           echo "archive=${archive}" >>"${GITHUB_OUTPUT}"
+          images=()
           {
             echo "## erp ${VERSION}"
             echo
@@ -212,11 +218,13 @@ jobs:
             for key in backend migrations frontend; do
               pin=$(yq -r ".images.${key}" bundle/manifest.yaml)
               image=${pin%@*}
+              images+=("${image%:*}@${pin##*@}")
               echo "| ${key} | \`${image##*:}\` | \`${pin##*@}\` |"
             done
             echo
             echo "Bundle digest: \`${digest}\`"
           } >>"${GITHUB_STEP_SUMMARY}"
+          echo "images=${images[*]}" >>"${GITHUB_OUTPUT}"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.existing.outputs.proceed == 'true'

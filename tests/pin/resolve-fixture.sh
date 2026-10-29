@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Stands in for `scripts/resolve.sh` under tests/pin/run.sh, with the same
-# contract -- line 1 the digest a tag resolves to, `schema=<value>` on line 2
+# contract -- line 1 the digest a tag or digest resolves to, `schema=<value>` on line 2
 # when the image carries the `tech.morze.erp.schema` label -- answered from
 # the reference itself, so a test run reaches no registry.
 #
@@ -19,8 +19,17 @@ if [ $# -ne 1 ]; then
 fi
 
 ref=$1
-printf 'sha256:%s\n' "$(printf '%s' "$ref" | sha256sum | awk '{print $1}')"
+case "$ref" in
+	# A digest a registry no longer holds: the components' retention pruned it.
+	*@sha256:deadbeef*)
+		echo "resolve-fixture: ${ref}: not found" >&2
+		exit 1
+		;;
+	# A digest resolves to itself, as `oras manifest fetch --descriptor` says.
+	*@sha256:*) printf '%s\n' "${ref##*@}" ;;
+	*) printf 'sha256:%s\n' "$(printf '%s' "$ref" | sha256sum | awk '{print $1}')" ;;
+esac
 
 case "$ref" in
-	*/erp-migrations:*) printf 'schema=0007\n' ;;
+	*/erp-migrations:* | */erp-migrations@*) printf 'schema=0007\n' ;;
 esac

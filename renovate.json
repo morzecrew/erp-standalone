@@ -10,16 +10,6 @@
         "(?<depName>ghcr\\.io/[a-z0-9._/-]+):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
       "datasourceTemplate": "docker"
-    },
-    {
-      "description": "Component releases named in components.yaml",
-      "customType": "regex",
-      "managerFilePatterns": ["/^components\\.yaml$/"],
-      "matchStrings": [
-        "image:\\s*(?<depName>\\S+)\\s*\\n\\s*version:\\s*(?<currentValue>\\S+)"
-      ],
-      "datasourceTemplate": "docker",
-      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [

@@ -4,14 +4,14 @@
 
 ### S-0001/D-15 — `ASSUMED` (erp-standalone as a morzer release bundle of the whole ERP)
 
-`scripts/resolve.sh` resolves an image tag to its digest and reads the migrations image's schema label; `scripts/pin.sh` writes the component pins and `database_schema_produces` into `bundle/manifest.yaml`. `components.yaml` names the backend's and frontend's `X.Y.Z`, `rollback_safe` and notes; the migrations follow the backend's version. In release mode `pin.sh` refuses `main` and `sha-*` tags.
+`scripts/resolve.sh` resolves an image tag or digest to its digest and reads the migrations image's schema label; `scripts/pin.sh` writes the component pins and `database_schema_produces` into `bundle/manifest.yaml`. The dev channel pins each component's `main`, the migrations beside the backend. `scripts/pin.sh --release X.Y.Z` resolves no tag: it keeps each digest the committed manifest pins under the tag `bundle-X.Y.Z`, and refuses a version that is not `X.Y.Z`, the all-zero placeholder and a digest the registry no longer holds. `components.yaml` holds only each component's `rollback_safe`.
 
 - Paths: `scripts/**` `/components.yaml`
-- Consequence: a dev bundle pins whatever `main` is, and a release is made of component releases only; pinning twice changes nothing
+- Consequence: a dev bundle pins whatever `main` is, and a release ships the digests the dev channel installed and smoke-tested, never a rebuild; pinning twice changes nothing
 
 ### S-0001/D-21 — `ASSUMED` (erp-standalone as a morzer release bundle of the whole ERP)
 
-`renovate.json` bumps the infrastructure images in `bundle/manifest.yaml` through one regex custom manager over `repo:tag@sha256:`, and `components.yaml`'s semver tags through the docker datasource. Its one host rule reads the private packages: `matchHost: ghcr.io`, `hostType: docker`, `username: Misery7100` and `password: "{{ secrets.GHCR_READ_TOKEN }}"`, a repository secret in Mend's developer portal.
+`renovate.json` bumps the infrastructure images in `bundle/manifest.yaml` through one regex custom manager over `repo:tag@sha256:`. Its one host rule reads the private packages: `matchHost: ghcr.io`, `hostType: docker`, `username: Misery7100` and `password: "{{ secrets.GHCR_READ_TOKEN }}"`, a repository secret in Mend's developer portal.
 
 - Paths: `/renovate.json`
 - Consequence: a new infrastructure digest or component release arrives as a pull request; merging one and tagging here is a bundle release

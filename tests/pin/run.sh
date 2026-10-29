@@ -7,13 +7,14 @@
 #
 #   bash tests/pin/run.sh
 #
-# It checks what D-15 asks for: a dev pin is `main`, a release pin is the
-# versions components.yaml names, release mode refuses `main` and `sha-*`, the
-# migrations label lands in all three compatibility fields, pinning twice
-# changes nothing, and no other value in the manifest moves -- plus what D-4
-# asks for: release mode writes `compatibility.rollback_safe` true only when
-# both components.yaml entries are, and refuses a value that is not a boolean,
-# while a plain pin leaves the committed value alone.
+# It checks what D-15 asks for: a dev pin is `main`, a release keeps the
+# digests the dev pin committed under `bundle-X.Y.Z` and refuses a placeholder
+# or pruned digest and a version that is not X.Y.Z, the migrations label lands
+# in all three compatibility fields, pinning twice changes nothing, and no
+# other value in the manifest moves -- plus what D-4 asks for: release mode
+# writes `compatibility.rollback_safe` true only when both components.yaml
+# entries are, and refuses a value that is not a boolean, while a plain pin
+# leaves the committed value alone.
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -70,18 +71,12 @@ new_tree() { # new_tree <name>
 	printf '%s' "${dir}"
 }
 
-write_components() { # write_components <tree> <backend version> <frontend version> <backend safe> <frontend safe>
+write_components() { # write_components <tree> <backend safe> <frontend safe>
 	cat >"$1/components.yaml" <<-EOF
 		backend:
-		  image: ghcr.io/morzecrew/erp-backend
-		  version: $2
-		  rollback_safe: $4
-		  notes: Test backend.
+		  rollback_safe: $2
 		frontend:
-		  image: ghcr.io/morzecrew/erp-frontend
-		  version: $3
-		  rollback_safe: $5
-		  notes: Test frontend.
+		  rollback_safe: $3
 	EOF
 }
 
@@ -113,7 +108,7 @@ echo "# the dev channel pins main"
 dev=$(new_tree dev)
 # components.yaml disagrees with the manifest about rollback_safe, so a plain
 # pin that touched the field would be caught below.
-write_components "${dev}" 0.0.0 0.0.0 false false
+write_components "${dev}" false false
 pin "${dev}" >/dev/null
 
 expect "pins the backend to main" \
@@ -157,21 +152,36 @@ pinned=$(hash "${dev}/bundle/manifest.yaml")
 pin "${dev}" >/dev/null
 expect "a second pin writes the same bytes" "${pinned}" "$(hash "${dev}/bundle/manifest.yaml")"
 
-echo "# release mode pins the versions components.yaml names"
+# A release ships what the dev channel pinned, not what `main` points at by the
+# time it is cut: the committed digests below are not the ones the fixture
+# resolves `main` to, so a release that resolved a tag again would be caught.
+echo "# release mode promotes the committed pins under bundle-X.Y.Z"
 release=$(new_tree release)
-write_components "${release}" 1.2.3 4.5.6 true true
-pin "${release}" --release >/dev/null
+write_components "${release}" true true
+committed_backend=sha256:$(printf 'a%.0s' {1..64})
+committed_migrations=sha256:$(printf 'b%.0s' {1..64})
+committed_frontend=sha256:$(printf 'c%.0s' {1..64})
+yq -i "
+	.images.backend = \"ghcr.io/morzecrew/erp-backend:main@${committed_backend}\" |
+	.images.migrations = \"ghcr.io/morzecrew/erp-migrations:main@${committed_migrations}\" |
+	.images.frontend = \"ghcr.io/morzecrew/erp-frontend:main@${committed_frontend}\"" \
+	"${release}/bundle/manifest.yaml"
+pin "${release}" --release 1.2.3 >/dev/null
 
-expect "pins the backend to its version" \
-	"ghcr.io/morzecrew/erp-backend:1.2.3@$(fixture_digest ghcr.io/morzecrew/erp-backend:1.2.3)" \
+expect "keeps the backend's digest" \
+	"ghcr.io/morzecrew/erp-backend:bundle-1.2.3@${committed_backend}" \
 	"$(yaml_get "${release}" '.images.backend')"
-expect "pins the migrations to the backend's version" \
-	"ghcr.io/morzecrew/erp-migrations:1.2.3@$(fixture_digest ghcr.io/morzecrew/erp-migrations:1.2.3)" \
+expect "keeps the migrations' digest" \
+	"ghcr.io/morzecrew/erp-migrations:bundle-1.2.3@${committed_migrations}" \
 	"$(yaml_get "${release}" '.images.migrations')"
-expect "pins the frontend to its own version" \
-	"ghcr.io/morzecrew/erp-frontend:4.5.6@$(fixture_digest ghcr.io/morzecrew/erp-frontend:4.5.6)" \
+expect "keeps the frontend's digest" \
+	"ghcr.io/morzecrew/erp-frontend:bundle-1.2.3@${committed_frontend}" \
 	"$(yaml_get "${release}" '.images.frontend')"
 expect "records the migrations label too" 7 "$(yaml_get "${release}" '.compatibility.database_schema_produces')"
+
+promoted=$(hash "${release}/bundle/manifest.yaml")
+pin "${release}" --release 1.2.3 >/dev/null
+expect "a second promotion writes the same bytes" "${promoted}" "$(hash "${release}/bundle/manifest.yaml")"
 
 # D-4: a rollback is safe only when both components are, and release mode is
 # the only writer of the field.
@@ -179,32 +189,38 @@ echo "# release mode writes rollback_safe as the conjunction of both components"
 expect "both true gives true" true "$(yaml_get "${release}" '.compatibility.rollback_safe')"
 
 safe_backend=$(new_tree safe-backend)
-write_components "${safe_backend}" 1.2.3 4.5.6 false true
-pin "${safe_backend}" --release >/dev/null
+write_components "${safe_backend}" false true
+pin "${safe_backend}" --release 1.2.3 >/dev/null
 expect "a false backend gives false" false \
 	"$(yaml_get "${safe_backend}" '.compatibility.rollback_safe')"
 
 safe_frontend=$(new_tree safe-frontend)
-write_components "${safe_frontend}" 1.2.3 4.5.6 true false
-pin "${safe_frontend}" --release >/dev/null
+write_components "${safe_frontend}" true false
+pin "${safe_frontend}" --release 1.2.3 >/dev/null
 expect "a false frontend gives false" false \
 	"$(yaml_get "${safe_frontend}" '.compatibility.rollback_safe')"
 
-echo "# release mode refuses what a release is not made of"
-refuses() { # refuses <what> <backend version> <frontend version> <substring>
-	local what=$1 tree before
-	shift
+echo "# release mode refuses what it cannot promote"
+refuses() { # refuses <what> <substring> <yq update or ''> <pin.sh args...>
+	local what=$1 want=$2 update=$3 tree before
+	shift 3
 	tree=$(new_tree "refuse-${what// /-}")
-	write_components "${tree}" "$1" "$2" true true
+	write_components "${tree}" true true
+	[ -z "${update}" ] || yq -i "${update}" "${tree}/bundle/manifest.yaml"
 	before=$(hash "${tree}/bundle/manifest.yaml")
-	refuse "${what}" "$3" pin "${tree}" --release
+	refuse "${what}" "${want}" pin "${tree}" "$@"
 	expect "${what}: the manifest is left alone" "${before}" "$(hash "${tree}/bundle/manifest.yaml")"
 }
 
-refuses "the branch tag main" main 4.5.6 "is 'main'"
-refuses "a main frontend" 1.2.3 main "is 'main'"
-refuses "a commit tag sha-*" sha-1a2b3c4 4.5.6 "not a commit"
-refuses "a version that is not X.Y.Z" 1.2 4.5.6 "is not X.Y.Z"
+zero=sha256:$(printf '0%.0s' {1..64})
+pruned=sha256:deadbeef$(printf 'e%.0s' {1..56})
+refuses "a release with no version" "takes the release's version" '' --release
+refuses "a version that is not X.Y.Z" "not '1.2'" '' --release 1.2
+refuses "a v-prefixed version" "not 'v1.2.3'" '' --release v1.2.3
+refuses "the placeholder digest" "holds the placeholder digest" \
+	".images.backend = \"ghcr.io/morzecrew/erp-backend:main@${zero}\"" --release 1.2.3
+refuses "a digest the registry pruned" "release a newer commit of main" \
+	".images.frontend = \"ghcr.io/morzecrew/erp-frontend:main@${pruned}\"" --release 1.2.3
 
 # D-4: only a boolean is a release input. A word that is neither, and a quoted
 # boolean -- a string that spells `true` -- are both refused.
@@ -212,9 +228,9 @@ refuses_safe() { # refuses_safe <what> <backend safe> <frontend safe> <substring
 	local what=$1 tree before
 	shift
 	tree=$(new_tree "refuse-${what// /-}")
-	write_components "${tree}" 1.2.3 4.5.6 "$1" "$2"
+	write_components "${tree}" "$1" "$2"
 	before=$(hash "${tree}/bundle/manifest.yaml")
-	refuse "${what}" "$3" pin "${tree}" --release
+	refuse "${what}" "$3" pin "${tree}" --release 1.2.3
 	expect "${what}: the manifest is left alone" "${before}" "$(hash "${tree}/bundle/manifest.yaml")"
 }
 
@@ -236,6 +252,11 @@ expect_lines "an image without the label prints the digest alone" 1 "${backend_o
 refuse "a reference with no tag" "names no tag" \
 	env PATH="${stub_path}" bash "${repo}/scripts/resolve.sh" ghcr.io/morzecrew/erp-backend
 
+by_digest=$(fixture_digest ghcr.io/morzecrew/erp-migrations:main)
+digest_out=$(PATH="${stub_path}" bash "${repo}/scripts/resolve.sh" "ghcr.io/morzecrew/erp-migrations@${by_digest}")
+expect "a digest resolves to itself" "${by_digest}" "$(printf '%s\n' "${digest_out}" | sed -n '1p')"
+expect "a digest's schema label is read too" "schema=0007" "$(printf '%s\n' "${digest_out}" | sed -n '2p')"
+
 echo "# the scripts as a release calls them"
 # No PIN_ROOT and no RESOLVE: pin.sh finds the committed components.yaml and
 # the manifest where it lives, which is how a workflow calls it. The tree is a
@@ -249,18 +270,19 @@ cp "${repo}/components.yaml" "${tree}/components.yaml"
 chmod +x "${tree}/scripts/resolve.sh"
 
 release_out=''
-# Release mode refuses a component entry that is missing a field, so this
-# passing says the committed components.yaml carries all of them.
-if release_out=$(bash "${tree}/scripts/pin.sh" --release 2>&1); then
-	ok "the committed components.yaml carries every field a release reads"
+# Release mode refuses a components.yaml entry without a boolean, and a
+# placeholder digest, so this passing says the committed files are releasable.
+if release_out=$(bash "${tree}/scripts/pin.sh" --release 0.1.0 2>&1); then
+	ok "the committed components.yaml and manifest are what a release reads"
 else
-	fail "the committed components.yaml carries every field a release reads: ${release_out}"
+	fail "the committed components.yaml and manifest are what a release reads: ${release_out}"
 fi
 
-expect "pins the version the committed components.yaml names" \
-	"ghcr.io/morzecrew/erp-backend:0.0.0@$(fixture_digest ghcr.io/morzecrew/erp-backend:0.0.0)" \
+committed=$(yq -r '.images.backend' "${original}")
+expect "promotes the digest the committed manifest pins" \
+	"ghcr.io/morzecrew/erp-backend:bundle-0.1.0@${committed##*@}" \
 	"$(yq -r '.images.backend' "${tree}/bundle/manifest.yaml")"
-if printf '%s' "${release_out}" | grep -qF 'erp-backend:0.0.0@'; then
+if printf '%s' "${release_out}" | grep -qF 'erp-backend:bundle-0.1.0@'; then
 	ok "reports the pin it wrote"
 else
 	fail "reports the pin it wrote: ${release_out}"

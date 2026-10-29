@@ -3,7 +3,9 @@
 # release.yml call it; pr.yml never does.
 #
 # This is the one workflow that can write packages, and it runs nothing from
-# the bundle.
+# the bundle. A release also tags the component images it pins, in the
+# erp-backend, erp-migrations and erp-frontend packages: each grants this
+# repository the Write role under "Manage Actions access".
 name: publish
 
 on:
@@ -25,6 +27,10 @@ on:
         description: "Tag to move after publishing: main or stable"
         type: string
         required: true
+      images:
+        description: "Component images (`repo@digest`, space-separated) to tag `bundle-<version>` before publishing; empty tags none"
+        type: string
+        default: ""
 
 permissions: {}
 
@@ -86,6 +92,7 @@ jobs:
           VERSION: ${{ inputs.version }}
           ARCHIVE: ${{ inputs.archive }}
           CHANNEL: ${{ inputs.channel }}
+          IMAGES: ${{ inputs.images }}
         run: |
           repo="ghcr.io/${GITHUB_REPOSITORY,,}"
           status=0
@@ -95,6 +102,15 @@ jobs:
           1) ;;
           *) exit 1 ;;
           esac
+          # A release pins images the components' retention would prune once
+          # newer builds pass them; it never deletes a version with a tag its
+          # filter does not match. Tagged before the bundle is pushed, so no
+          # published release names an image that is not kept; a rerun tags
+          # the same digests again, which changes nothing.
+          for image in ${IMAGES}; do
+            oras tag "${image}" "bundle-${VERSION}"
+            echo "Tagged \`${image%@*}:bundle-${VERSION}\` (\`${image##*@}\`)." >>"${GITHUB_STEP_SUMMARY}"
+          done
           scripts=${GITHUB_WORKSPACE}/.github/workflows/scripts
           cd "${RUNNER_TEMP}/dist"
           oras push "${repo}:${VERSION}" --artifact-type "${ARTIFACT_TYPE}" "${ARCHIVE}:${LAYER_TYPE}"

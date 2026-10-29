@@ -41,7 +41,9 @@ head of `main`; the first tagged release seals this section under its version.
 - A pipeline that pins the components' digests, smoke-tests every bundle on a
   fresh install and on an update, signs it with minisign and publishes it to
   `ghcr.io/morzecrew/erp-standalone` behind a rolling `:main` dev channel and
-  immutable `X.Y.Z` releases on a rolling `:stable` channel.
+  immutable `X.Y.Z` releases on a rolling `:stable` channel. A release is a tag
+  here: it ships the component images a dev build pinned and the dev VM ran,
+  and tags each `bundle-X.Y.Z` so the components' retention keeps it.
 - The «Ассистент» chat can be turned on. It is off by default; the operator
   sets `assistant_api_key` and `assistant_enabled=true`, and
   `assistant_base_url` and `assistant_model` choose the endpoint.

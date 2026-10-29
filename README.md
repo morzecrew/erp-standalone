@@ -75,7 +75,7 @@ artifact, and moves two rolling tags. A version is immutable once published.
 | Tag | Channel | Built from |
 |---|---|---|
 | `:main` | **dev** — a sandbox that may be broken | every component merge, as a pre-release `<next-patch>-dev.<n>.g<sha>` |
-| `:stable` | **customer** — released components only | a `vX.Y.Z` tag on `main`, as the release `X.Y.Z` |
+| `:stable` | **customer** — dev builds a person promoted | a `vX.Y.Z` tag on `main`, as the release `X.Y.Z` of the component digests pinned there |
 
 An exact version — `ghcr.io/morzecrew/erp-standalone:1.4.0` — can be installed
 or staged at any time, and is the same artifact `:stable` pointed at that day.
@@ -517,33 +517,45 @@ A runner, self-hosted or GitHub-hosted, needs:
 
 ## Cutting a release
 
-A release is made of component releases, so it is cut in this order:
+A release promotes a dev build: it ships the component digests `main.yml`
+committed, which the dev VM installed and CI smoke-tested. The components are
+not tagged or rebuilt. It is cut in this order:
 
-1. **Release each component.** A `vX.Y.Z` tag on erp-backend's `main`
-   publishes `erp-backend:X.Y.Z` and `erp-migrations:X.Y.Z`; one on
-   erp-frontend's `main` publishes `erp-frontend:X.Y.Z`.
-2. **Name them here, in one pull request.** In `components.yaml`, each
-   component's `version`, its `notes`, and its `rollback_safe` — `true` only
-   when its previous release can run on what this one leaves behind. In
-   `bundle/RELEASE.md`, what changed for the operator.
-3. **Tag `main`** once that pull request is merged:
+1. **Prepare it in one pull request.** In `components.yaml`, each component's
+   `rollback_safe`: `true` only when its previous release can run on what this
+   one leaves behind. In `bundle/RELEASE.md`, what changed for the operator.
+2. **Let the dev VM install it.** The merge is a `bundle/` commit, so `:main`
+   publishes it, and the VM installs it on its next tick.
+3. **Tag the commit the dev VM runs.** `sudo morzer status` names it: release
+   `0.0.1-dev.42.g1a2b3c4` was built from `1a2b3c4`.
 
    ```console
-   git tag vA.B.C origin/main && git push origin vA.B.C
+   git tag vA.B.C 1a2b3c4 && git push origin vA.B.C
    ```
 
 `release.yml` then:
 - refuses a tag that is not `vX.Y.Z` on `main`;
-- pins the versions `components.yaml` names with `scripts/pin.sh --release`,
-  in the runner (the pins are not committed);
+- keeps the digests the tagged commit pins and names them `bundle-A.B.C`, with
+  `scripts/pin.sh --release A.B.C`, in the runner (nothing is committed). It
+  refuses a digest the registry no longer holds;
 - builds `A.B.C` and signs it with the release key;
 - smoke-tests a fresh install and an update from the current `:stable`;
-- publishes `:A.B.C` and moves `:stable`.
+- tags each component image `bundle-A.B.C`, publishes `:A.B.C` and moves
+  `:stable`.
 
 A version already published fails the run: a version never changes content.
 Before the first release there is no `:stable`, and only the fresh install is
-proven. Until step 1 has happened once, `components.yaml` holds the `0.0.0`
-placeholders, and a tag here fails at the pin.
+proven.
+
+**Tag soon after the dev VM settles.** A component image is pruned once it is
+past the 3 newest `sha-*` builds of its repository and more than a day old,
+unless a release has tagged it. A commit whose images are gone cannot be
+released, and `pin.sh` refuses it by name.
+
+The tag needs one setting in each of the `erp-backend`, `erp-migrations` and
+`erp-frontend` packages: under **Package settings → Manage Actions access**,
+`erp-standalone` holds the **Write** role. Without it `publish.yml` fails at
+the tag, and nothing is published.
 
 ## Housekeeping, and why not to prune images
 
@@ -554,7 +566,9 @@ retained images and untagged versions, not by the releases themselves — and
 CI keeps both tight. The registry keeps the last 5 `*-dev.*` versions, drops
 untagged versions after a day, and never touches `:main`, `:stable` or any
 `X.Y.Z`, which is what lets a dev VM roll back to a bundle from earlier in the
-week and still install any released version.
+week and still install any released version. The component repositories keep
+the last 3 `sha-*` builds and every image a release tagged `bundle-X.Y.Z`:
+their retention never deletes a version with a tag its filter does not match.
 
 **Do not run `docker image prune -af` or `docker system prune -a`.** morzer
 0.7.0 removes a pruned release's images itself, and a manual prune
