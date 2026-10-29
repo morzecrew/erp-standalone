@@ -18,7 +18,7 @@ A bundle is a signed, digest-pinned directory. morzer reads it, renders it
 against the machine's parameters and secret state, and drives Compose. The
 bundle in this repository is a `morzer` **application-release** named `erp`,
 manifest API `selfhost/v1alpha1`, with Compose as its runtime and `sops-age`
-for secrets. It needs morzer **0.6.0** or later, and refuses to load on an
+for secrets. It needs morzer **0.7.0** or later, and refuses to load on an
 older manager rather than failing later.
 
 | File | What it holds |
@@ -57,7 +57,7 @@ appears in `docker inspect` or in a process's environment.
   migrations. morzer's `preflight` refuses a host that cannot.
 - **Ports** 80 and 443, and 8081 on loopback. All three are release
   parameters (`http_port`, `https_port`, `health_port`) and can be changed.
-- **morzer 0.6.0** or later, installed and on `PATH`.
+- **morzer 0.7.0** or later, installed and on `PATH`.
 
 Two rules that prevent most surprises:
 
@@ -98,20 +98,13 @@ sudo morzer init --mode dev --product erp \
 # 3. Set the operator secret (see below), then start it.
 sudo morzer apply
 
-# 4. Pull the image backups read volumes through: doctor's backup.volume-helper
-#    warning prints the exact `docker pull`.
-sudo morzer doctor
-
-# 5. Follow the channel unattended, every fifteen minutes.
+# 4. Follow the channel unattended, every fifteen minutes.
 sudo morzer config set \
   update.check=true \
   update.channel=oci://ghcr.io/morzecrew/erp-standalone:main \
   update.auto_apply=true \
   update.schedule='*:0/15' \
   backup.before_update=false
-
-# 6. morzer 0.6.0 enables the timers but does not start them (morzer#139).
-sudo systemctl start erp-update.timer erp-backup.timer
 ```
 
 - `--mode dev` marks the machine as a sandbox. It is fixed at creation and
@@ -139,15 +132,11 @@ sudo systemctl start erp-update.timer erp-backup.timer
   whatever its channel offers, schema changes included.
 - `backup.before_update=false` is the dev VM's choice: it skips the pre-update
   backup, which a sandbox does not need and which costs disk on every merge.
-  On morzer 0.6.0 it is also what lets a tick install at all: with the
-  pre-update backup on, every unattended tick fails at its backup step
-  ([morzer#134](https://github.com/morzecrew/morzer/issues/134)).
 
 A manual tick is `sudo morzer update --unattended`.
-`sudo morzer update --check oci://ghcr.io/morzecrew/erp-standalone` reports
-whether a newer version is published without installing anything. The bare
-`--check` refuses until the first `update` from a ref, because `init` records no
-release source ([morzer#138](https://github.com/morzecrew/morzer/issues/138)).
+`sudo morzer update --check` reports whether a newer version is published
+without installing anything. It reads the ref `init` installed from, or the
+repository of `update.channel`; a ref given to `--check` is used as given.
 
 ## Install a customer VM (follows `:stable`)
 
@@ -165,13 +154,9 @@ sudo morzer init --product erp \
 # the operator secret, then:
 sudo morzer apply
 
-# then the `docker pull` that doctor's backup.volume-helper warning prints:
-sudo morzer doctor
-
 sudo morzer config set \
   update.check=true \
   update.channel=oci://ghcr.io/morzecrew/erp-standalone:stable
-sudo systemctl start erp-update.timer erp-backup.timer   # morzer#139
 ```
 
 Differences from the dev VM, and why:
@@ -182,7 +167,7 @@ Differences from the dev VM, and why:
 - **`update.auto_apply` is left off**, so the timer only stages and reports.
   Installing is a person's decision, and `morzer update` (below) takes a
   pre-update backup by default. Leave `backup.before_update` at its default of
-  `true`, and `update.auto_apply` off until morzer#134 is fixed.
+  `true`, and `update.auto_apply` off.
 - **Configure a backup target.** A backup on the machine whose disk is about
   to fail is not a backup. An `s3://` or `ssh://` target reads its credentials
   from one secret holding a small YAML document:
@@ -211,6 +196,13 @@ The `MINISIGN_DEV_PUBKEY` and `MINISIGN_RELEASE_PUBKEY` values are the
 repository's public-key variables — a single base64 line beginning `RW…`, the
 one minisign prints as its public key. `sudo morzer release trust list` shows
 the keys the installation already trusts.
+
+## Upgrading a machine set up under 0.6.0
+
+Upgrade morzer to 0.7.0 before installing the next bundle: a machine on an
+older manager refuses a bundle that needs 0.7.0 and names the version it needs.
+If the timers never started on that machine, run
+`sudo morzer init --repair` once, or reboot; either starts them.
 
 ## The operator secrets
 
@@ -394,12 +386,8 @@ sudo morzer backup fetch <backup-id>
 sudo morzer restore --backup <backup-id> --force --confirm <installation-id> \
   --identity ./erp-recovery.key
 
-# 4. The systemd units, and the record of this machine's signing key: import
-#    installs no units and writes a key it does not record (morzer#135).
-#    Repair needs the product and the recovery recipient again, the same public
-#    key; the bare `init --repair` doctor prints refuses.
-sudo morzer --product erp init --repair --recovery-recipient "$OFFLINE_AGE_RECIPIENT"
-sudo systemctl start erp-update.timer erp-backup.timer   # morzer#139
+# 4. Check the machine: import installs the systemd units and records this
+#    machine's signing key.
 sudo morzer doctor
 
 # 5. The key leaves the machine again.
@@ -522,7 +510,7 @@ untagged versions after a day, and never touches `:main`, `:stable` or any
 week and still install any released version.
 
 **Do not run `docker image prune -af` or `docker system prune -a`.** morzer
-0.6.0 already removes a pruned release's images itself, and a manual prune
+0.7.0 removes a pruned release's images itself, and a manual prune
 takes the previous release's images and the backup helper image with it, so
 the next rollback finds nothing to go back to. Let `morzer release prune` and
 the retention policy do it.
