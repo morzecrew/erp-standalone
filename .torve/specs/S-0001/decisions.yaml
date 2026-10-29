@@ -401,3 +401,16 @@ decisions:
       a `docker exec` had to name by hand. `seed` writes demo data that a production
       database must never get.
     cites: [S-0005/D-1]
+  - id: D-27
+    grade: ASSUMED
+    text: >-
+      `frontend` sets `VITE_RELEASE_VERSION: ${ERP_VERSION:-}`, the release morzer
+      gives Compose, which the image writes into `/config.json`.
+    paths: [bundle/compose/compose.yaml]
+    consequence: >-
+      the sidebar names the bundle a machine runs, and its tooltip the frontend's
+      and the backend's builds
+    rationale: >-
+      The image's own `VITE_APP_VERSION` names a component build, `main` on every
+      dev build, and `package.json` says `0.0.1` whatever runs; only the manager knows
+      the release.

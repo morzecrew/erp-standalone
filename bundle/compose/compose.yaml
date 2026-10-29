@@ -189,6 +189,9 @@ services:
   frontend:
     image: ${ERP_IMAGE_FRONTEND}
     restart: unless-stopped
+    environment:
+      # The release morzer installed, which the sidebar shows (/config.json).
+      VITE_RELEASE_VERSION: ${ERP_VERSION:-}
     healthcheck:
       # The caddy base image's health route, on the frontend's own address.
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/__platform_healthz"]
