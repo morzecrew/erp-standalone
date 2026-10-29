@@ -4,6 +4,7 @@
 #
 #   smoke.sh install <archive> <pubkey>...  fresh `sudo morzer init` and `apply`
 #   smoke.sh update <archive>               `sudo morzer update` to the archive
+#   smoke.sh task                           `morzer task list`, then run `repair`
 #   smoke.sh probe                          the edge's loopback health port
 #   smoke.sh backup-restore                 back up, write over it, restore, check
 #   smoke.sh rotate-db-password             rotate the database password, apply, read
@@ -208,11 +209,13 @@ install)
 	;;
 update)
 	[ $# -eq 2 ] || die "usage: smoke.sh update <archive>"
-	# A machine installed before the bundle declared assistant_api_key has no
-	# value for it, and only `init` generates: the README's one-time step.
-	sudo morzer secret list --json | jq -e '[.. | objects | .name? // empty] | index("assistant_api_key")' >/dev/null \
-		|| sudo morzer secret generate assistant_api_key
 	sudo morzer --verbose update "$2"
+	;;
+task)
+	# A one-shot backend container, through the entrypoint that reads its
+	# secrets; repair changes nothing on a fresh install.
+	sudo morzer task list
+	sudo morzer --verbose task run repair
 	;;
 probe) probe ;;
 backup-restore) backup_restore ;;
@@ -223,5 +226,5 @@ rollback)
 	;;
 free-disk) free_disk ;;
 diagnose) diagnose ;;
-*) die "usage: smoke.sh install|update|probe|backup-restore|rotate-db-password|rollback|diagnose|free-disk" ;;
+*) die "usage: smoke.sh install|update|task|probe|backup-restore|rotate-db-password|rollback|diagnose|free-disk" ;;
 esac

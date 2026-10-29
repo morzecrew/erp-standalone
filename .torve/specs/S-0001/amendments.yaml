@@ -265,3 +265,28 @@ amendments:
       re-creates the backend and the worker. The defaults are erp-backend's own. Turning
       it on sends the questions, and the data the assistant's tools read, to that
       endpoint.
+  - id: A-11
+    at: '2026-10-29T10:21:49Z'
+    title: the bundle needs morzer 0.8.0
+    changes:
+      - subject: D-1
+        field: text
+        before: >-
+          The bundle is a morzer `application-release` named `erp`, format `selfhost/v1alpha1`,
+          declaring `compatibility.min_manager_version: "0.7.0"` (S-0005/D-1), Compose
+          as its runtime and `sops-age` for secrets. Its files are `bundle/manifest.yaml`,
+          `secrets.schema.yaml`, `compose/compose.yaml`, `edge/erp.caddy`, `hooks/smoke-test`
+          and `RELEASE.md`.
+        after: >-
+          The bundle is a morzer `application-release` named `erp`, format `selfhost/v1alpha1`,
+          declaring `compatibility.min_manager_version: "0.8.0"` (S-0005/D-1), Compose
+          as its runtime and `sops-age` for secrets. Its files are `bundle/manifest.yaml`,
+          `secrets.schema.yaml`, `compose/compose.yaml`, `edge/erp.caddy`, `hooks/smoke-test`
+          and `RELEASE.md`.
+      - subject: D-1
+        field: fingerprint
+        before: fa58430dd0791a27/8fb1b1cb2a761aec
+        after: 07f3afcddb5cba3e/8fb1b1cb2a761aec
+    md: >-
+      morzer 0.8.0 adds `tasks:`, and a manifest that declares them needs `min_manager_version:
+      "0.8.0"` (S-0005/A-2). D-26 declares the bundle's two.

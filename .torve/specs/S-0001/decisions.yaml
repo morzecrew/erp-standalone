@@ -4,7 +4,7 @@ decisions:
     grade: ASSUMED
     text: >-
       The bundle is a morzer `application-release` named `erp`, format `selfhost/v1alpha1`,
-      declaring `compatibility.min_manager_version: "0.7.0"` (S-0005/D-1), Compose
+      declaring `compatibility.min_manager_version: "0.8.0"` (S-0005/D-1), Compose
       as its runtime and `sops-age` for secrets. Its files are `bundle/manifest.yaml`,
       `secrets.schema.yaml`, `compose/compose.yaml`, `edge/erp.caddy`, `hooks/smoke-test`
       and `RELEASE.md`.
@@ -17,7 +17,7 @@ decisions:
       morzer 0.6.0 is the latest release and the first with secret `owner` (CHANGELOG
       0.6.0), which every non-root reader here needs. Decoding is strict, so an unknown
       field is an error, not a silent default.
-    fingerprint: fa58430dd0791a27/8fb1b1cb2a761aec
+    fingerprint: 07f3afcddb5cba3e/8fb1b1cb2a761aec
   - id: D-2
     grade: ASSUMED
     text: >-
@@ -385,3 +385,19 @@ decisions:
       health port
     rationale: Each API worker takes about 300 MB.
     fingerprint: 074ad7b741624e6b/b6b3b43e2ac1f7b1
+  - id: D-26
+    grade: ASSUMED
+    text: >-
+      The manifest declares two tasks on `backend`: `seed` (`command: [seed]`, `args:
+      true`, `modes: [dev]`, `timeout: 30m`) and `repair` (`command: [repair]`, no
+      arguments, every mode).
+    paths: [bundle/manifest.yaml]
+    consequence: >-
+      an operator seeds a dev machine and reruns the stock repair with `morzer task
+      run`, journaled and under the deployment lock, and a production machine refuses
+      `seed` by name
+    rationale: >-
+      A task runs through the image's entrypoint, so envfile-exec loads the secrets
+      a `docker exec` had to name by hand. `seed` writes demo data that a production
+      database must never get.
+    cites: [S-0005/D-1]

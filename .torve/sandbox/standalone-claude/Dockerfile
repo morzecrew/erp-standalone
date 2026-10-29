@@ -12,7 +12,7 @@
 ARG BASE=ghcr.io/morzecrew/claude-sandbox:2.1.283-torve0.7.0
 FROM ${BASE}
 
-ARG MORZER=0.7.0
+ARG MORZER=0.8.0
 # `morzer.pub` at the root of morzecrew/morzer, as its install.sh carries it.
 ARG MORZER_PUBKEY=RWRS3ZHbN8tEYuF9Se2e+JzQMiUCoLbABbJtzSxBThI/U4Bhw+AR+IbQ
 ARG YQ=4.54.1

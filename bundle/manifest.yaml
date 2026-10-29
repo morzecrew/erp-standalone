@@ -126,6 +126,20 @@ operations:
     kind: hook
     command: ["hooks/smoke-test"]
     timeout: 5m
+# What an operator runs by name with `morzer task run`, through the backend
+# image's entrypoint, which loads the `*_FILE` secrets.
+tasks:
+  seed:
+    description: "Fill an empty database with demo data (-- --size xs|s|m|l --seed N)"
+    service: backend
+    command: [seed]
+    args: true
+    modes: [dev]
+    timeout: 30m
+  repair:
+    description: Give back to free stock what closed or deleted plans still hold
+    service: backend
+    command: [repair]
 backup:
   volumes:
     # Postgres and Valkey stop together, so a restore never pairs Valkey's
@@ -163,9 +177,9 @@ compatibility:
   # `backend.rollback_safe` and `frontend.rollback_safe` together, true only
   # when both are; plain `scripts/pin.sh` leaves it as committed.
   rollback_safe: true
-  # The first manager whose `apply` and `update` pull the volume helper a
-  # backup reads itself (morzer#142), and whose fixes the README assumes.
-  min_manager_version: "0.7.0"
+  # The first manager that reads `tasks:`, and whose `update` generates a
+  # secret a release adds.
+  min_manager_version: "0.8.0"
 retention:
   releases: 3
   backups: 7

@@ -6,7 +6,7 @@ change:
   type: build
   scope: bundle
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0001, S-0002, S-0004]
 informed_by: [S-0003]
 supersedes: []

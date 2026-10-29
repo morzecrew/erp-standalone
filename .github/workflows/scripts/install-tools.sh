@@ -12,7 +12,7 @@
 # Tools install in the order given; morzer needs minisign and zstd first.
 set -euo pipefail
 
-MORZER=0.7.0
+MORZER=0.8.0
 # `morzer.pub` at the root of morzecrew/morzer, as its install.sh carries it.
 MORZER_PUBKEY=RWRS3ZHbN8tEYuF9Se2e+JzQMiUCoLbABbJtzSxBThI/U4Bhw+AR+IbQ
 MINISIGN=0.12
