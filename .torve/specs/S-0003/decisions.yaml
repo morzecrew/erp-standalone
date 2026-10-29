@@ -51,21 +51,6 @@ decisions:
       The earlier builds start as 70 and 10001 and cannot read a file 65532 owns,
       so D-1 and D-2 need these builds and no older one.
     cites: [S-0001/D-13]
-  - id: D-4
-    grade: ASSUMED
-    text: >-
-      `smoke.sh install` sets only `admin_password`, from `random`. The `set_secret`
-      shortcut that tolerated exit 6 goes, and `secret set` runs directly, failing
-      the step on any non-zero exit.
-    paths: [.github/workflows/scripts/smoke.sh]
-    consequence: >-
-      CI installs the way an operator now does, and a `secret set` failure is a red
-      step
-    rationale: >-
-      morzer 0.6.0 exits 6 from `secret set` while another required secret is unset.
-      With every other secret generated at `init`, nothing is unset when the only
-      operator secret is set.
-    cites: [S-0001/D-16]
   - id: D-5
     grade: ASSUMED
     text: >-
@@ -92,29 +77,6 @@ decisions:
       the session's settings keep the ALTER out of the server's log, which records
       any statement slower than 200 ms.
     cites: [S-0002/D-3]
-  - id: D-6
-    grade: ASSUMED
-    text: >-
-      `smoke.sh rotate-db-password` writes the marker `rotated` into Postgres, runs
-      `sudo morzer secret rotate postgres_password` and `sudo morzer --verbose apply`,
-      and fails unless the marker reads `rotated` through PgBouncer: psql inside the
-      pgbouncer container, to 127.0.0.1:6432 as `postgres`, with `PGPASSWORD` read
-      from `/run/secrets/postgres_password` inside that container's shell. `.github/workflows/bundle.yml`'s
-      smoke-install job runs it after backup-restore and probes again, and `scripts/rehearse.sh`
-      runs it at the same point.
-    paths:
-      - .github/workflows/scripts/smoke.sh
-      - .github/workflows/bundle.yml
-      - scripts/rehearse.sh
-    consequence: >-
-      every bundle proves that a rotated database password reaches the role and every
-      reader
-    rationale: >-
-      The rotation is the one path where the role and the file can disagree, and it
-      is the one D-5 exists for. A login through PgBouncer with the new value proves
-      both hops the backend uses; the backend's `/health` answers without touching
-      the database.
-    cites: [S-0002/D-5, S-0002/D-7]
   - id: D-7
     grade: ASSUMED
     text: >-
@@ -132,3 +94,4 @@ decisions:
     rationale: >-
       The README's pairs and `\password` steps describe the schema D-1 replaces.
     cites: [S-0001/D-7]
+retired: [D-4, D-6]

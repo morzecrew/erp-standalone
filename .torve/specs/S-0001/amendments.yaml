@@ -373,3 +373,73 @@ amendments:
     md: >-
       `release.yml` builds from the digests the tagged commit pins (A-12), and D-28
       tags each component image `bundle-X.Y.Z` before `:X.Y.Z` is published.
+  - id: A-15
+    at: '2026-10-29T18:53:10Z'
+    title: the pipeline's scripts are bundle-ci's
+    changes:
+      - subject: D-15
+        field: retired
+        before: scripts/** /components.yaml
+        after: >-
+          the pipeline and its scripts are bundle-ci's now (S-0001/D-29)
+    md: >-
+      The pipeline moved to morzecrew/bundle-ci (S-0001/D-29): this repository calls
+      its reusable workflows and keeps only the callers, components.yaml and its smoke
+      hooks. `pin.sh` and `resolve.sh` are bundle-ci's, so D-15 no longer describes
+      a file here.
+  - id: A-16
+    at: '2026-10-29T18:53:36Z'
+    title: >-
+      the dev version comes from bundle-ci's version.sh
+    changes:
+      - subject: D-16
+        field: text
+        before: >-
+          `main.yml` builds as `scripts/version.sh` names it (S-0002/D-1): `<next-patch>-dev.<n>.g<sha>`
+          of the last commit that changed `bundle/`, a prerelease, and publishes `:<version>`
+          then moves `:main`. `release.yml` runs on a tag `vX.Y.Z` on main, refuses
+          one that is not, builds `--version X.Y.Z` from the digests the tagged commit
+          pins (D-15), tags each component image `bundle-X.Y.Z` (D-28), and publishes
+          `:X.Y.Z` then moves `:stable`. `pr.yml` builds `--version 0.0.0-pr.<number>`.
+          Any publish first refuses a version whose tag already exists.
+        after: >-
+          `main.yml` builds as bundle-ci's `version.sh` names it (D-29): `<next-patch>-dev.<n>.g<sha>`
+          of the last commit that changed `bundle/`, a prerelease, and publishes `:<version>`
+          then moves `:main`. `release.yml` runs on a tag `vX.Y.Z` on main, refuses
+          one that is not, builds `--version X.Y.Z` from the digests the tagged commit
+          pins, tags each component image `bundle-X.Y.Z` (D-28), and publishes `:X.Y.Z`
+          then moves `:stable`. `pr.yml` builds `--version 0.0.0-pr.<number>`. Any
+          publish first refuses a version whose tag already exists.
+      - subject: D-16
+        field: fingerprint
+        before: d020d8b47429a0db/a2ae58da4858baa1
+        after: 623a194f32439836/a2ae58da4858baa1
+    md: >-
+      The dev version is bundle-ci's `version.sh`'s (D-29); S-0002/D-1, which described
+      this repository's copy, is retired.
+  - id: A-17
+    at: '2026-10-29T18:53:36Z'
+    title: a smoke hook change rebuilds the dev channel
+    changes:
+      - subject: D-17
+        field: text
+        before: >-
+          `main.yml` runs on `repository_dispatch` `component-published`, on a push
+          to `bundle/**` or `components.yaml`, by hand, and every six hours, in one
+          concurrency group that never cancels. It re-resolves every component's `main`
+          and never trusts the payload; a changed pin is committed as `⬆️ build(deps):
+          bump <components> to <sha7s>` with `GITHUB_TOKEN` and pushed, rebasing and
+          re-resolving on a lost race.
+        after: >-
+          `main.yml` runs on `repository_dispatch` `component-published`, on a push
+          to `bundle/**`, `components.yaml` or `.github/smoke.d/**`, by hand, and
+          every six hours, in one concurrency group that never cancels. It re-resolves
+          every component's `main` and never trusts the payload; a changed pin is
+          committed as `⬆️ build(deps): bump <components> to <sha7s>` with `GITHUB_TOKEN`
+          and pushed, rebasing and re-resolving on a lost race.
+      - subject: D-17
+        field: fingerprint
+        after: 707bc4ba2ee4d758/a2ae58da4858baa1
+    md: >-
+      A smoke hook is part of what a dev bundle is tested with, so a change under
+      `.github/smoke.d` rebuilds the dev channel.

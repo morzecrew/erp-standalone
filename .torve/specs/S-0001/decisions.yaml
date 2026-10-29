@@ -222,36 +222,15 @@ decisions:
       Owner's call (2026-10-23): cold volumes now, a `pg_dump` hook later. A bundle
       with neither a backup hook nor named volumes fails every update. The baked `min_wal_size`
       of 1 GB made each copy at least a gigabyte against a 20 GiB disk.
-  - id: D-15
-    grade: ASSUMED
-    text: >-
-      `scripts/resolve.sh` resolves an image tag or digest to its digest and reads
-      the migrations image's schema label; `scripts/pin.sh` writes the component pins
-      and `database_schema_produces` into `bundle/manifest.yaml`. The dev channel
-      pins each component's `main`, the migrations beside the backend. `scripts/pin.sh
-      --release X.Y.Z` resolves no tag: it keeps each digest the committed manifest
-      pins under the tag `bundle-X.Y.Z`, and refuses a version that is not `X.Y.Z`,
-      the all-zero placeholder and a digest the registry no longer holds. `components.yaml`
-      holds only each component's `rollback_safe`.
-    paths: [scripts/**, /components.yaml]
-    consequence: >-
-      a dev bundle pins whatever `main` is, and a release ships the digests the dev
-      channel installed and smoke-tested, never a rebuild; pinning twice changes nothing
-    rationale: >-
-      The migrations image always ships with the backend's commit. On `main`, backend
-      and migrations rebuild only when their own paths change, so each is resolved,
-      not derived. A release used to re-resolve component `X.Y.Z` tags, which rebuilt
-      images no dev machine had run and needed three tags per release (S-0001/A-12).
-    fingerprint: 555964c7768a2e2a/6b0f5a9892461c23
   - id: D-16
     grade: ASSUMED
     text: >-
-      `main.yml` builds as `scripts/version.sh` names it (S-0002/D-1): `<next-patch>-dev.<n>.g<sha>`
+      `main.yml` builds as bundle-ci's `version.sh` names it (D-29): `<next-patch>-dev.<n>.g<sha>`
       of the last commit that changed `bundle/`, a prerelease, and publishes `:<version>`
       then moves `:main`. `release.yml` runs on a tag `vX.Y.Z` on main, refuses one
-      that is not, builds `--version X.Y.Z` from the digests the tagged commit pins
-      (D-15), tags each component image `bundle-X.Y.Z` (D-28), and publishes `:X.Y.Z`
-      then moves `:stable`. `pr.yml` builds `--version 0.0.0-pr.<number>`. Any publish
+      that is not, builds `--version X.Y.Z` from the digests the tagged commit pins,
+      tags each component image `bundle-X.Y.Z` (D-28), and publishes `:X.Y.Z` then
+      moves `:stable`. `pr.yml` builds `--version 0.0.0-pr.<number>`. Any publish
       first refuses a version whose tag already exists.
     paths: [.github/workflows/**]
     consequence: >-
@@ -261,16 +240,16 @@ decisions:
       `--version-from-git` needs a reachable tag (`morzer/internal/release/version.go`),
       hence the owner's seed `v0.0.0`, and refuses a dirty bundle directory, which
       a pull request's uncommitted pin makes.
-    fingerprint: d020d8b47429a0db/a2ae58da4858baa1
+    fingerprint: 623a194f32439836/a2ae58da4858baa1
   - id: D-17
     grade: ASSUMED
     text: >-
       `main.yml` runs on `repository_dispatch` `component-published`, on a push to
-      `bundle/**` or `components.yaml`, by hand, and every six hours, in one concurrency
-      group that never cancels. It re-resolves every component's `main` and never
-      trusts the payload; a changed pin is committed as `⬆️ build(deps): bump <components>
-      to <sha7s>` with `GITHUB_TOKEN` and pushed, rebasing and re-resolving on a lost
-      race.
+      `bundle/**`, `components.yaml` or `.github/smoke.d/**`, by hand, and every six
+      hours, in one concurrency group that never cancels. It re-resolves every component's
+      `main` and never trusts the payload; a changed pin is committed as `⬆️ build(deps):
+      bump <components> to <sha7s>` with `GITHUB_TOKEN` and pushed, rebasing and re-resolving
+      on a lost race.
     paths: [.github/workflows/**]
     consequence: >-
       `git log` shows what changed between two dev bundles, and a lost dispatch is
@@ -278,6 +257,7 @@ decisions:
     rationale: >-
       A push with `GITHUB_TOKEN` starts no further run. The commit is the dev bundle's
       identity, which keeps the version monotonic.
+    fingerprint: 707bc4ba2ee4d758/a2ae58da4858baa1
   - id: D-18
     grade: ASSUMED
     text: >-
@@ -440,3 +420,26 @@ decisions:
       `sha-*` keeps it. `oras tag` puts the same manifest under a new tag, which adds
       no storage and keeps the digest.
     cites: [D-15, D-20]
+  - id: D-29
+    grade: ASSUMED
+    text: >-
+      The pipeline is `morzecrew/bundle-ci`'s reusable workflows: `main.yml` calls
+      its `pin.yml`, `bundle.yml` and `publish.yml`, `release.yml` its `guard.yml`,
+      `bundle.yml` and `publish.yml`, `pr.yml` its `bundle.yml`, and `retention.yml`
+      its `retention.yml`, each pinned to one bundle-ci commit and passing that commit
+      as `bundle-ci-ref` until bundle-ci tags a release. They pass `operator-secrets:
+      admin_password` and the minisign public keys; the components, the schema label
+      and the probe paths are bundle-ci's defaults. This repository keeps the callers,
+      `components.yaml` and the smoke hooks in `.github/smoke.d`: the task, the backup
+      and restore, and the database password rotation, sharing `lib/markers.sh`.
+    paths: [.github/workflows/**, .github/smoke.d/**]
+    consequence: >-
+      the pin, build, sign, smoke and publish steps, the rig and the rehearsal script
+      are one copy across bundle repositories; a fix to them lands here when the pin
+      moves
+    rationale: >-
+      erp-standalone and bi-standalone carried the same pipeline, byte for byte but
+      for names, and the second copy had already fallen behind (S-0001/A-12 had not
+      reached it).
+    cites: [D-15, D-16, D-28]
+retired: [D-15]

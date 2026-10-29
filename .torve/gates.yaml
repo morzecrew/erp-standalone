@@ -62,20 +62,8 @@ gates:
     state: blocking
     origin: structural
     timeout: 60
-  # Armed by S-0001 P2 (tests/pin/).
-  - name: pin-tests
-    run: "if [ -f tests/pin/run.sh ]; then bash tests/pin/run.sh; else echo 'pin-tests: no tests/pin/run.sh yet; S-0001 P2 arms it'; fi"
-    input: worktree
-    state: blocking
-    origin: structural
-    timeout: 120
-  # Armed by S-0001 P3 (.github/workflows/).
-  - name: version-tests
-    run: "if [ -f tests/version/run.sh ]; then bash tests/version/run.sh; else echo 'version-tests: no tests/version/run.sh yet; S-0002 P1 arms it'; fi"
-    input: worktree
-    state: blocking
-    origin: structural
-    timeout: 120
+  # The pin and version tests moved to morzecrew/bundle-ci with the scripts
+  # they test (S-0001/D-29); its CI runs them.
   - name: actionlint
     run: "if [ -d .github/workflows ]; then actionlint; else echo 'actionlint: no workflows yet; S-0001 P3 arms it'; fi"
     input: worktree

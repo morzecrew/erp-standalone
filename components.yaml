@@ -1,6 +1,6 @@
 # What the next release says of the two components it ships.
 #
-# A release promotes the digests main.yml committed (`scripts/pin.sh
+# A release promotes the digests main.yml committed (bundle-ci's `pin.sh
 # --release X.Y.Z`), so no component version is named here. `rollback_safe` is
 # `true` only when the component's previous release can run on what this one
 # leaves behind; the bundle declares both together. The pull request that

@@ -13,100 +13,6 @@ decisions:
     rationale: >-
       erp-backend's expression and variable; the fallback keeps a fork, or a lapsed
       runner pool, building.
-  - id: D-2
-    grade: ASSUMED
-    text: >-
-      Every job but `smoke-install` and `smoke-update` runs in the job container `ubuntu:24.04@sha256:24737cef17f4e22b1977df7d9a05e77c4e28b7da5b8911f8d8ccda136bf3573c`
-      as root, under `bash -e {0}`, and ends with an `always()` step that gives the
-      workspace and `$RUNNER_TEMP` back to the runner's user. Its first step installs
-      git, curl, ca-certificates and jq from Ubuntu's archive, and `install-tools.sh`
-      installs the job's pinned tools inside the container, calling `sudo` only when
-      it is not root. A job that checks out the repository then adds the workspace
-      to git's global `safe.directory`, since the workspace outlives the job owned
-      by the runner's user. A step on the host installs a tool under `BIN_DIR`, a
-      directory the job owns, without `sudo`.
-    paths: [.github/workflows/*.yml, .github/workflows/scripts/install-tools.sh]
-    consequence: >-
-      no package or binary a job installs outlives the job's container, zstd keeps
-      its Ubuntu 24.04 pin, and `install-tools.sh` still runs on a workstation
-    rationale: >-
-      The runners' operating system and packages are unknown here, and Docker is not.
-      JavaScript actions need glibc, which rules out an Alpine base.
-    fingerprint: 93ac34b07b47d411/05ec8370c47850d4
-  - id: D-3
-    grade: ASSUMED
-    text: >-
-      A job that reaches ghcr outside a rig keeps its credentials under `$RUNNER_TEMP`:
-      `DOCKER_CONFIG` points there, and it logs in with `oras login ghcr.io --password-stdin`.
-      No job logs a Docker client in on the host.
-    paths: [.github/workflows/*.yml]
-    consequence: >-
-      a token never lands in the runner user's or root's home, where the next job
-      of any repository could read it
-  - id: D-4
-    grade: ASSUMED
-    text: >-
-      `scripts/resolve.sh` and `main.yml`'s `sha7` read an image's digest and labels
-      with `oras`: the digest from `oras manifest fetch --descriptor`, the labels
-      from `oras manifest fetch-config`, taking an index's `linux/amd64` manifest.
-      The script's output does not change, and `tests/pin/` stands an `oras` fixture
-      in for the registry.
-    paths: [scripts/resolve.sh, .github/workflows/main.yml]
-    consequence: >-
-      only the smoke jobs need a Docker client, and they use the host's own
-    rationale: >-
-      oras is already pinned in `install-tools.sh` and installed in the jobs that
-      pin and publish.
-    cites: [S-0001/D-17]
-  - id: D-5
-    grade: ASSUMED
-    text: >-
-      Each smoke job installs and exercises the bundle inside its own rig: a privileged
-      `docker:29.7.2-dind@sha256:3ef33f2e220b79ed3ef3b99d81746f06f306cd6340e2cb7331d17ae996e74cb6`
-      container named `erp-smoke-<run id>-<run attempt>-<job>`, with a Docker volume
-      of the same name for its `/var/lib/docker`, which `.github/workflows/scripts/rig.sh`
-      starts with the runner's `http(s)_proxy` and `no_proxy` unless they name a loopback
-      address. The job copies `install-tools.sh`, `smoke.sh` and its archives into
-      the rig, runs every `smoke.sh` operation there, and removes the container and
-      its volume in an `always()` step.
-    paths: [.github/workflows/bundle.yml, .github/workflows/scripts/rig.sh]
-    consequence: >-
-      the host sees one container and one volume per smoke job, both gone when it
-      ends, and two smoke jobs on one host never share an installation
-    rationale: >-
-      `scripts/rehearse.sh` runs the same operations in the same image (S-0002/D-7),
-      so the rig is proven and S-0001/D-19's checks keep their meaning.
-    cites: [S-0001/D-19, S-0002/D-7]
-    fingerprint: a26304f9c699f352/2e8679f2dcfb5b84
-  - id: D-6
-    grade: ASSUMED
-    text: >-
-      `rig.sh login` logs the rig's Docker in to ghcr inside the rig, reading the
-      job's token on stdin, before the bundle pulls its images. `smoke.sh` keeps its
-      `sudo`, which the rig's root runs through the `sudo` package the rig adds.
-    paths: [.github/workflows/scripts/rig.sh, .github/workflows/scripts/smoke.sh]
-    consequence: >-
-      the token is written only inside a container the job removes, and `smoke.sh`
-      reads the same inside a rig and on a workstation
-  - id: D-7
-    grade: ASSUMED
-    text: >-
-      `scripts/rehearse.sh` starts, enters and removes its container through `rig.sh`,
-      keeping its fixed name `erp-rehearsal` and its offline image loading.
-    paths: [scripts/rehearse.sh]
-    consequence: >-
-      the workstation rehearsal and CI exercise one rig, so a fix to either reaches
-      both
-    cites: [S-0002/D-7]
-  - id: D-8
-    grade: ASSUMED
-    text: >-
-      `smoke.sh free-disk` runs only when `runner.environment` is `github-hosted`;
-      each `free-disk` step carries that condition.
-    paths: [.github/workflows/bundle.yml]
-    consequence: >-
-      a self-hosted runner's toolchains are never deleted, and its disk is its operator's
-      to size
   - id: D-9
     grade: ASSUMED
     text: >-
@@ -120,3 +26,4 @@ decisions:
       whoever adds or replaces a runner knows what it must offer without reading the
       workflows
     fingerprint: 348f988be0741f8a/f4289ae7acd4559a
+retired: [D-2, D-3, D-4, D-5, D-6, D-7, D-8]

@@ -1,6 +1,7 @@
 # Keep the bundle package inside the free plan's storage: the last 5 dev
 # versions, which a dev VM may still roll back to, and untagged versions for a
-# day. `main`, `stable` and every X.Y.Z are never selected.
+# day. `main`, `stable` and every X.Y.Z are never selected. The job is
+# bundle-ci's.
 name: retention
 
 on:
@@ -10,48 +11,12 @@ on:
 
 permissions: {}
 
-# A job container runs `run:` under sh unless told otherwise; the steps are
-# bash, as GitHub-hosted runners ran them (`bash -e {0}`, no pipefail).
-defaults:
-  run:
-    shell: bash -e {0}
-
 jobs:
   retention:
-    runs-on: ${{ vars.RUNS_ON || 'ubuntu-24.04' }}
-    container:
-      image: ubuntu:24.04@sha256:24737cef17f4e22b1977df7d9a05e77c4e28b7da5b8911f8d8ccda136bf3573c
     # The package API is reached with GH_PAT, not GITHUB_TOKEN.
     permissions: {}
-    steps:
-      - name: Install git, curl, ca-certificates and jq
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends git curl ca-certificates jq
-
-      - name: Keep the last 5 dev versions
-        uses: snok/container-retention-policy@4f22ef80902ad409ed55a99dc5133cc1250a0d03 # v3.0.0
-        with:
-          account: ${{ github.repository_owner }}
-          token: ${{ secrets.GH_PAT }}
-          image-names: erp-standalone
-          image-tags: "*-dev.* !main !stable"
-          tag-selection: tagged
-          keep-n-most-recent: 5
-          cut-off: 1s
-
-      - name: Drop untagged versions after a day
-        uses: snok/container-retention-policy@4f22ef80902ad409ed55a99dc5133cc1250a0d03 # v3.0.0
-        with:
-          account: ${{ github.repository_owner }}
-          token: ${{ secrets.GH_PAT }}
-          image-names: erp-standalone
-          tag-selection: untagged
-          cut-off: 1d
-
-      # The steps above ran as root over the runner's mounted workspace, so
-      # its files are root's now; the runner's next job on the host could
-      # not clean them for its checkout. Hand them back to the runner's user.
-      - name: Hand the workspace back to the runner's user
-        if: always()
-        run: chown -R "$(stat -c %u:%g "${RUNNER_WORKSPACE}")" "${RUNNER_WORKSPACE}" "${RUNNER_TEMP}"
+    uses: morzecrew/bundle-ci/.github/workflows/retention.yml@26a7adcabc0c732268b396d5bfbd781a6e0d0f5b
+    with:
+      runs-on: ${{ vars.RUNS_ON || 'ubuntu-24.04' }}
+    secrets:
+      token: ${{ secrets.GH_PAT }}

@@ -473,14 +473,18 @@ sudo morzer apply
 
 ## Rehearsing a bundle
 
-`scripts/rehearse.sh` rehearses on a workstation what CI's smoke jobs prove on
-the runner — install the published bundle, back it up and restore it, update to
-the working tree's `bundle/`, and roll back — before a pull request is opened.
+bundle-ci's `rehearse.sh` rehearses on a workstation what CI's smoke jobs prove
+on the runner — install the published bundle, run the smoke hooks in
+`.github/smoke.d` (the task, a backup and restore, the database password
+rotation), update to the working tree's `bundle/`, and roll back — before a
+pull request is opened. Run it from this repository's root:
 
 ```console
-scripts/rehearse.sh                     # from :main
-scripts/rehearse.sh --from <oci ref>    # from another published bundle
-scripts/rehearse.sh --keep              # leave the container and its volume
+git clone https://github.com/morzecrew/bundle-ci ~/bundle-ci
+export REHEARSE_PUBKEY="$(gh variable get MINISIGN_DEV_PUBKEY)" REHEARSE_OPERATOR_SECRETS=admin_password
+bash ~/bundle-ci/scripts/rehearse.sh                    # from :main
+bash ~/bundle-ci/scripts/rehearse.sh --from <oci ref>   # from another published bundle
+bash ~/bundle-ci/scripts/rehearse.sh --keep             # leave the container and its volume
 ```
 
 Everything runs in a privileged `docker:29.7.2-dind` container named
@@ -497,7 +501,10 @@ public key that signed the `--from` bundle must be in `REHEARSE_PUBKEY`.
 
 ## CI runners
 
-Every workflow job runs on `${{ vars.RUNS_ON || 'ubuntu-24.04' }}`: the
+The workflows here are thin callers of
+[morzecrew/bundle-ci](https://github.com/morzecrew/bundle-ci)'s reusable
+workflows, pinned to one bundle-ci commit; what only this bundle checks lives in
+`.github/smoke.d`. Every workflow job runs on `${{ vars.RUNS_ON || 'ubuntu-24.04' }}`: the
 repository variable `RUNS_ON` names the runner label — `self-hosted` today —
 and, unset, the jobs run on GitHub-hosted `ubuntu-24.04` with the same steps.
 
@@ -507,7 +514,7 @@ A runner, self-hosted or GitHub-hosted, needs:
   amd64 only.
 - **A Docker that allows privileged containers.** Each smoke job runs the
   bundle inside a privileged `docker:29.7.2-dind` rig with its own Docker
-  volume, and `scripts/rehearse.sh` uses the same rig on a workstation.
+  volume, and bundle-ci's `rehearse.sh` uses the same rig on a workstation.
 - **Room for one rig:** the release's 20 GiB preflight under `/var/lib/erp`
   plus the bundle's images, all held by that rig's container and volume.
 - **No `sudo` for its user.** Jobs install their tools in a job container, in
@@ -516,8 +523,8 @@ A runner, self-hosted or GitHub-hosted, needs:
 - **A proxy containers can reach, if it has one.** The runner hands its
   `http(s)_proxy` to every job container, where `127.0.0.1` is the container's
   own loopback. Point it at an address containers reach, such as the Docker
-  bridge's `172.17.0.1`, with the proxy listening there. `rig.sh` passes a
-  non-loopback proxy into each rig.
+  bridge's `172.17.0.1`, with the proxy listening there. bundle-ci's `rig.sh`
+  passes a non-loopback proxy into each rig.
 
 ## Cutting a release
 
@@ -540,7 +547,7 @@ not tagged or rebuilt. It is cut in this order:
 `release.yml` then:
 - refuses a tag that is not `vX.Y.Z` on `main`;
 - keeps the digests the tagged commit pins and names them `bundle-A.B.C`, with
-  `scripts/pin.sh --release A.B.C`, in the runner (nothing is committed). It
+  bundle-ci's `pin.sh --release A.B.C`, in the runner (nothing is committed). It
   refuses a digest the registry no longer holds;
 - builds `A.B.C` and signs it with the release key;
 - smoke-tests a fresh install and an update from the current `:stable`;

@@ -145,3 +145,66 @@ amendments:
       so a failure in flyway, bootstrap or the schema hook always ends at exit 12.
       Only a failure after migrate returns by itself, and only where `rollback_safe`
       is true, which a release takes from `components.yaml`.
+  - id: A-5
+    at: '2026-10-29T18:53:37Z'
+    title: rollback_safe is written by bundle-ci's pin.sh
+    changes:
+      - subject: D-4
+        field: paths
+        before: [bundle/manifest.yaml, bundle/RELEASE.md, scripts/pin.sh, tests/pin/**]
+        after: [bundle/manifest.yaml, bundle/RELEASE.md, /components.yaml]
+      - subject: D-4
+        field: text
+        before: >-
+          The committed manifest declares `compatibility.rollback_safe: true`. `scripts/pin.sh
+          --release` writes `rollback_safe` as `components.yaml`'s `backend.rollback_safe`
+          and `frontend.rollback_safe` together, true only when both are, and refuses
+          a value that is not `true` or `false`. Plain `pin.sh` leaves it as committed.
+        after: >-
+          The committed manifest declares `compatibility.rollback_safe: true`. bundle-ci's
+          `pin.sh --release` writes `rollback_safe` as `components.yaml`'s `backend.rollback_safe`
+          and `frontend.rollback_safe` together, true only when both are, and refuses
+          a value that is not `true` or `false`. A plain pin leaves it as committed.
+      - subject: D-4
+        field: fingerprint
+        after: 6a3a8600fa2e1e86/f486237bfe44abb8
+    md: >-
+      `pin.sh` is bundle-ci's (S-0001/D-29). The row keeps what this repository decides,
+      `components.yaml`'s two values, and drops the script and its tests from its
+      paths.
+  - id: A-6
+    at: '2026-10-29T18:53:38Z'
+    title: >-
+      5 path-rotted row(s) retired by `torve spec check --fix-rot`
+    changes:
+      - subject: D-1
+        field: retired
+        before: scripts/version.sh tests/version/**
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-2
+        field: retired
+        before: .github/workflows/bundle.yml
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-5
+        field: retired
+        before: >-
+          .github/workflows/scripts/smoke.sh .github/workflows/bundle.yml
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-6
+        field: retired
+        before: .github/workflows/bundle.yml
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-7
+        field: retired
+        before: scripts/rehearse.sh
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+    md: >-
+      The pipeline moved to morzecrew/bundle-ci (S-0001/D-29): this repository calls
+      its reusable workflows and keeps only the callers, components.yaml and its smoke
+      hooks. `version.sh`, the build step, the smoke script, `bundle.yml`'s smoke-update
+      and the rehearsal script are bundle-ci's.

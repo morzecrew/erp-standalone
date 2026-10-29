@@ -1,6 +1,7 @@
 # The stable channel: a tag `vX.Y.Z` on main promotes the component digests
-# main.yml committed there into `:X.Y.Z`, tags each image `bundle-X.Y.Z` so the
-# components' retention keeps it, then moves `:stable`.
+# the dev channel committed there into `:X.Y.Z`, tags each image
+# `bundle-X.Y.Z` so the components' retention keeps it, then moves `:stable`.
+# The jobs are bundle-ci's.
 name: release
 
 on:
@@ -13,67 +14,30 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-# A job container runs `run:` under sh unless told otherwise; the steps are
-# bash, as GitHub-hosted runners ran them (`bash -e {0}`, no pipefail).
-defaults:
-  run:
-    shell: bash -e {0}
-
 jobs:
   guard:
-    runs-on: ${{ vars.RUNS_ON || 'ubuntu-24.04' }}
-    container:
-      image: ubuntu:24.04@sha256:24737cef17f4e22b1977df7d9a05e77c4e28b7da5b8911f8d8ccda136bf3573c
     permissions:
       contents: read
-    outputs:
-      version: ${{ steps.tag.outputs.version }}
-    steps:
-      - name: Install git, curl, ca-certificates and jq
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends git curl ca-certificates jq
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      # The workspace outlives the job on a self-hosted runner, owned by the
-      # runner's user, and git refuses it to this container's root.
-      - name: Trust the workspace
-        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
-
-      - name: Refuse a tag that is not vX.Y.Z on main
-        id: tag
-        run: |
-          tag=${GITHUB_REF_NAME}
-          [[ ${tag} =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
-            || { echo "::error::${tag} is not vX.Y.Z"; exit 1; }
-          git merge-base --is-ancestor "${GITHUB_SHA}" origin/main \
-            || { echo "::error::${tag} does not point at a commit on main"; exit 1; }
-          echo "version=${tag#v}" >>"${GITHUB_OUTPUT}"
-
-      # The steps above ran as root over the runner's mounted workspace, so
-      # its files are root's now; the runner's next job on the host could
-      # not clean them for its checkout. Hand them back to the runner's user.
-      - name: Hand the workspace back to the runner's user
-        if: always()
-        run: chown -R "$(stat -c %u:%g "${RUNNER_WORKSPACE}")" "${RUNNER_WORKSPACE}" "${RUNNER_TEMP}"
+    uses: morzecrew/bundle-ci/.github/workflows/guard.yml@26a7adcabc0c732268b396d5bfbd781a6e0d0f5b
+    with:
+      runs-on: ${{ vars.RUNS_ON || 'ubuntu-24.04' }}
 
   bundle:
     needs: guard
     permissions:
       contents: read
       packages: read
-    uses: ./.github/workflows/bundle.yml # zizmor: ignore[self-repository] -- actionlint reads only ./
+    uses: morzecrew/bundle-ci/.github/workflows/bundle.yml@26a7adcabc0c732268b396d5bfbd781a6e0d0f5b
     with:
       ref: ${{ github.sha }}
       version: ${{ needs.guard.outputs.version }}
       pin: release
       channel: stable
       signing: release
-      on-existing: fail
+      runs-on: ${{ vars.RUNS_ON || 'ubuntu-24.04' }}
+      operator-secrets: admin_password
+      release-pubkey: ${{ vars.MINISIGN_RELEASE_PUBKEY }}
+      bundle-ci-ref: 26a7adcabc0c732268b396d5bfbd781a6e0d0f5b
     secrets:
       minisign-key: ${{ secrets.MINISIGN_RELEASE_KEY }}
 
@@ -83,10 +47,11 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: ./.github/workflows/publish.yml # zizmor: ignore[self-repository] -- actionlint reads only ./
+    uses: morzecrew/bundle-ci/.github/workflows/publish.yml@26a7adcabc0c732268b396d5bfbd781a6e0d0f5b
     with:
-      ref: ${{ github.sha }}
       version: ${{ needs.bundle.outputs.version }}
       archive: ${{ needs.bundle.outputs.archive }}
       channel: stable
       images: ${{ needs.bundle.outputs.images }}
+      runs-on: ${{ vars.RUNS_ON || 'ubuntu-24.04' }}
+      bundle-ci-ref: 26a7adcabc0c732268b396d5bfbd781a6e0d0f5b

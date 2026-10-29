@@ -121,3 +121,23 @@ amendments:
       the rigs prove the manager the VM runs. The manifest keeps `min_manager_version:
       "0.8.0"` (D-1): the bundle uses nothing 0.9.0 adds, and 0.9.0's installation
       schema is one-way.
+  - id: A-7
+    at: '2026-10-29T18:53:39Z'
+    title: >-
+      2 path-rotted row(s) retired by `torve spec check --fix-rot`
+    changes:
+      - subject: D-2
+        field: retired
+        before: .github/workflows/scripts/install-tools.sh
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-3
+        field: retired
+        before: .github/workflows/scripts/smoke.sh
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+    md: >-
+      The pipeline moved to morzecrew/bundle-ci (S-0001/D-29): this repository calls
+      its reusable workflows and keeps only the callers, components.yaml and its smoke
+      hooks. The tools' pins, morzer's among them, and the smoke task step are bundle-ci's;
+      the task check is the hook `.github/smoke.d/10-task.sh`.
