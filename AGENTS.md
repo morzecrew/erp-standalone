@@ -39,7 +39,7 @@ The README's "The operator secrets" names `admin_password` as the one secret the
 
 ### S-0004/D-9 — `ASSUMED` (CI runs on the org's runners and leaves them clean)
 
-The README's CI section names `RUNS_ON` and its fallback, and what a runner needs: amd64, a Docker that allows privileged containers, room for one rig (the release's 20 GiB preflight under `/var/lib/erp` and the bundle's images), no `sudo` for its user, and, when it sets `http(s)_proxy`, an address containers reach rather than loopback.
+The README's CI section names `RUNS_ON` and its fallback, and what a runner needs: amd64, a Docker that allows privileged containers, room for one rig (the release's 20 GiB preflight under `/var/lib/erp` and the bundle's images), on a self-hosted runner room for bundle-ci's image cache under `~/.cache/bundle-ci/oci` (the bundle's private images, readable by the runner's user, off with `image-cache: false`), no `sudo` for its user, and, when it sets `http(s)_proxy`, an address containers reach rather than loopback.
 
 - Paths: `/README.md`
 - Consequence: whoever adds or replaces a runner knows what it must offer without reading the workflows
