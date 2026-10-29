@@ -443,3 +443,38 @@ amendments:
     md: >-
       A smoke hook is part of what a dev bundle is tested with, so a change under
       `.github/smoke.d` rebuilds the dev channel.
+  - id: A-18
+    at: '2026-10-29T20:29:42Z'
+    title: the callers pin a bundle-ci release
+    changes:
+      - subject: D-29
+        field: text
+        before: >-
+          The pipeline is `morzecrew/bundle-ci`'s reusable workflows: `main.yml` calls
+          its `pin.yml`, `bundle.yml` and `publish.yml`, `release.yml` its `guard.yml`,
+          `bundle.yml` and `publish.yml`, `pr.yml` its `bundle.yml`, and `retention.yml`
+          its `retention.yml`, each pinned to one bundle-ci commit and passing that
+          commit as `bundle-ci-ref` until bundle-ci tags a release. They pass `operator-secrets:
+          admin_password` and the minisign public keys; the components, the schema
+          label and the probe paths are bundle-ci's defaults. This repository keeps
+          the callers, `components.yaml` and the smoke hooks in `.github/smoke.d`:
+          the task, the backup and restore, and the database password rotation, sharing
+          `lib/markers.sh`.
+        after: >-
+          The pipeline is `morzecrew/bundle-ci`'s reusable workflows: `main.yml` calls
+          its `pin.yml`, `bundle.yml` and `publish.yml`, `release.yml` its `guard.yml`,
+          `bundle.yml` and `publish.yml`, `pr.yml` its `bundle.yml`, and `retention.yml`
+          its `retention.yml`, each pinned to one bundle-ci release by its commit,
+          with the tag in a comment; that release's `bundle-ci-ref` default names
+          the scripts its jobs run. They pass `operator-secrets: admin_password` and
+          the minisign public keys; the components, the schema label and the probe
+          paths are bundle-ci's defaults. This repository keeps the callers, `components.yaml`
+          and the smoke hooks in `.github/smoke.d`: the task, the backup and restore,
+          and the database password rotation, sharing `lib/markers.sh`.
+      - subject: D-29
+        field: fingerprint
+        after: 0af9e0176ca0c859/191ac44710bb590d
+    md: >-
+      bundle-ci tagged v0.1.1, whose `bundle-ci-ref` defaults name the release, so
+      the callers pin its commit with `# v0.1.1` beside it and pass no `bundle-ci-ref`.
+      Renovate's github-actions manager moves the pin and its comment together.
