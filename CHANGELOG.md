@@ -13,7 +13,7 @@ head of `main`; the first tagged release seals this section under its version.
 ### Added
 
 - The `erp` release bundle — a morzer `application-release`
-  (`selfhost/v1alpha1`, morzer 0.7.0 or later) that deploys the whole ERP on one
+  (`selfhost/v1alpha1`, morzer 0.8.0 or later) that deploys the whole ERP on one
   Linux machine: `erp-backend` (API and worker), `erp-frontend`, Postgres 18.6
   behind PgBouncer 1.26.1, Valkey 9.1, RustFS 1.0.4 and one Caddy 2.11.7 edge.
 - One origin. The edge routes `/v1`, `/v1/*`, `/mcp`, `/mcp/*`, `/health` and
@@ -44,15 +44,17 @@ head of `main`; the first tagged release seals this section under its version.
   immutable `X.Y.Z` releases on a rolling `:stable` channel.
 - The «Ассистент» chat can be turned on. It is off by default; the operator
   sets `assistant_api_key` and `assistant_enabled=true`, and
-  `assistant_base_url` and `assistant_model` choose the endpoint. A machine
-  installed earlier runs `sudo morzer secret generate assistant_api_key` once
-  before updating.
+  `assistant_base_url` and `assistant_model` choose the endpoint.
 - The backend and the frontend report their health, so `morzer status` shows
   them healthy or unhealthy rather than only running.
+- Tasks an operator runs by name: `morzer task run seed -- --size s` fills an
+  empty database with demo data on a dev machine and is refused on a
+  production one, and `morzer task run repair` gives back to free stock what
+  closed or deleted plans still hold.
 
 ### Changed
 
-- The bundle needs morzer 0.7.0 or later: a machine on an older manager refuses
+- The bundle needs morzer 0.8.0 or later: a machine on an older manager refuses
   it, naming the version it needs.
 - Between two releases on one schema, `morzer rollback` returns to the previous
   release: dev builds declare `rollback_safe: true` (a release declares what

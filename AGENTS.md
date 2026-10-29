@@ -44,16 +44,16 @@ The README's CI section names `RUNS_ON` and its fallback, and what a runner need
 - Paths: `/README.md`
 - Consequence: whoever adds or replaces a runner knows what it must offer without reading the workflows
 
-### S-0005/D-4 — `ASSUMED` (The bundle needs morzer 0.7.0) — implementation: none
+### S-0005/D-4 — `ASSUMED` (The bundle needs morzer 0.7.0)
 
-The README names morzer 0.7.0 as the minimum and drops 0.6.0's workarounds: the `doctor`-printed pull of the volume helper (morzer#142), `systemctl start` of the timers (morzer#139), the note that the dev VM's backup setting is what lets an unattended tick install (morzer#134), and `init --repair` after an import (morzer#135). A note says a machine set up under 0.6.0 upgrades morzer before the next bundle, and runs `sudo morzer init --repair` once, or reboots, if its timers never started.
+The README names morzer 0.8.0 as the minimum and drops 0.6.0's workarounds: the `doctor`-printed pull of the volume helper (morzer#142), `systemctl start` of the timers (morzer#139), the note that the dev VM's backup setting is what lets an unattended tick install (morzer#134), and `init --repair` after an import (morzer#135). Its "Upgrading morzer" says a machine upgrades morzer before the next bundle, and that one set up under 0.6.0 runs `sudo morzer init --repair` once, or reboots, if its timers never started.
 
 - Paths: `/README.md`
 - Consequence: the operator's procedures are the shortest ones 0.7.0 supports, and an existing machine knows its one extra step
 
-### S-0005/D-5 — `ASSUMED` (The bundle needs morzer 0.7.0) — implementation: none
+### S-0005/D-5 — `ASSUMED` (The bundle needs morzer 0.7.0)
 
-The CHANGELOG's `[Unreleased]` says, under Changed, that the bundle needs morzer 0.7.0 or later.
+The CHANGELOG's `[Unreleased]` says, under Changed, that the bundle needs morzer 0.8.0 or later.
 
 - Paths: `/CHANGELOG.md`
 - Consequence: an operator reading the release learns to upgrade morzer first
@@ -68,7 +68,7 @@ Each of these carries a managed `AGENTS.md` section listing the decisions
 and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 `<file>` and `torve spec tests S-NNNN/D-n` read the same corpus from the worktree.
 
-- `bundle/` — 19 decision(s)
+- `bundle/` — 20 decision(s)
 - `bundle/compose/` — 11 decision(s)
 - `bundle/edge/` — 1 decision(s)
 - `bundle/hooks/` — 3 decision(s)

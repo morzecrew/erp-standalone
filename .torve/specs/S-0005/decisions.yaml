@@ -3,7 +3,9 @@ decisions:
   - id: D-1
     grade: ASSUMED
     text: >-
-      `bundle/manifest.yaml` declares `compatibility.min_manager_version: "0.7.0"`.
+      `bundle/manifest.yaml` declares `compatibility.min_manager_version: "0.8.0"`,
+      the first manager that reads `tasks:` and whose `update` generates a secret
+      a release adds.
     paths: [bundle/manifest.yaml]
     consequence: >-
       a machine on an older morzer refuses the bundle and names the version it needs,
@@ -12,14 +14,16 @@ decisions:
       The README stops working around 0.6.0's bugs, the smoke tests prove 0.7.0 only,
       and no customer machine exists yet.
     cites: [S-0001/D-1]
+    fingerprint: c5e7c000ca11397d/b6b3b43e2ac1f7b1
   - id: D-2
     grade: ASSUMED
     text: >-
-      `install-tools.sh` installs morzer 0.7.0, verified as today against its release's
+      `install-tools.sh` installs morzer 0.8.0, verified as today against its release's
       `SHA256SUMS` and that file's minisign signature under the unchanged `MORZER_PUBKEY`.
     paths: [.github/workflows/scripts/install-tools.sh]
     consequence: >-
       every CI job and every rig runs the manager the bundle requires
+    fingerprint: 6e34f8cca6fe481a/f769c5b05fe880e9
   - id: D-3
     grade: ASSUMED
     text: >-
@@ -32,22 +36,24 @@ decisions:
   - id: D-4
     grade: ASSUMED
     text: >-
-      The README names morzer 0.7.0 as the minimum and drops 0.6.0's workarounds:
+      The README names morzer 0.8.0 as the minimum and drops 0.6.0's workarounds:
       the `doctor`-printed pull of the volume helper (morzer#142), `systemctl start`
       of the timers (morzer#139), the note that the dev VM's backup setting is what
       lets an unattended tick install (morzer#134), and `init --repair` after an import
-      (morzer#135). A note says a machine set up under 0.6.0 upgrades morzer before
-      the next bundle, and runs `sudo morzer init --repair` once, or reboots, if its
-      timers never started.
+      (morzer#135). Its "Upgrading morzer" says a machine upgrades morzer before the
+      next bundle, and that one set up under 0.6.0 runs `sudo morzer init --repair`
+      once, or reboots, if its timers never started.
     paths: [/README.md]
     consequence: >-
       the operator's procedures are the shortest ones 0.7.0 supports, and an existing
       machine knows its one extra step
+    fingerprint: 0a51e131c6f16056/f4289ae7acd4559a
   - id: D-5
     grade: ASSUMED
     text: >-
       The CHANGELOG's `[Unreleased]` says, under Changed, that the bundle needs morzer
-      0.7.0 or later.
+      0.8.0 or later.
     paths: [/CHANGELOG.md]
     consequence: >-
       an operator reading the release learns to upgrade morzer first
+    fingerprint: 8f2f1b5463b7f6bb/41f28b48b6259dfe

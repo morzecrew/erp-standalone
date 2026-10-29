@@ -287,6 +287,9 @@ jobs:
       - name: Probe
         run: bash .github/workflows/scripts/rig.sh exec "${RIG}" bash /rig/smoke.sh probe
 
+      - name: Run a task
+        run: bash .github/workflows/scripts/rig.sh exec "${RIG}" bash /rig/smoke.sh task
+
       - name: Back up and restore
         run: bash .github/workflows/scripts/rig.sh exec "${RIG}" bash /rig/smoke.sh backup-restore
 

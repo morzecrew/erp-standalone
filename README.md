@@ -18,7 +18,7 @@ A bundle is a signed, digest-pinned directory. morzer reads it, renders it
 against the machine's parameters and secret state, and drives Compose. The
 bundle in this repository is a `morzer` **application-release** named `erp`,
 manifest API `selfhost/v1alpha1`, with Compose as its runtime and `sops-age`
-for secrets. It needs morzer **0.7.0** or later, and refuses to load on an
+for secrets. It needs morzer **0.8.0** or later, and refuses to load on an
 older manager rather than failing later.
 
 | File | What it holds |
@@ -57,7 +57,7 @@ appears in `docker inspect` or in a process's environment.
   migrations. morzer's `preflight` refuses a host that cannot.
 - **Ports** 80 and 443, and 8081 on loopback. All three are release
   parameters (`http_port`, `https_port`, `health_port`) and can be changed.
-- **morzer 0.7.0** or later, installed and on `PATH`.
+- **morzer 0.8.0** or later, installed and on `PATH`.
 
 Two rules that prevent most surprises:
 
@@ -197,11 +197,11 @@ repository's public-key variables — a single base64 line beginning `RW…`, th
 one minisign prints as its public key. `sudo morzer release trust list` shows
 the keys the installation already trusts.
 
-## Upgrading a machine set up under 0.6.0
+## Upgrading morzer
 
-Upgrade morzer to 0.7.0 before installing the next bundle: a machine on an
-older manager refuses a bundle that needs 0.7.0 and names the version it needs.
-If the timers never started on that machine, run
+Upgrade morzer to 0.8.0 before installing the next bundle: a machine on an
+older manager refuses a bundle that needs 0.8.0 and names the version it needs.
+On a machine set up under 0.6.0 whose timers never started, run
 `sudo morzer init --repair` once, or reboot; either starts them.
 
 ## The operator secrets
@@ -264,14 +264,22 @@ sudo morzer config set assistant_base_url=https://<host>/v1 assistant_model=<mod
 
 `config set assistant_enabled=false` turns it off again.
 
-A machine installed before the bundle declared `assistant_api_key` has no
-value for it, because only `init` generates secrets: an update to a bundle
-that declares it stops at loading the secrets, before anything is rendered or
-started, with `required secret(s) not set`. Run this once, before that update:
+## Tasks
+
+The release declares the commands an operator runs by name. Each runs as a
+one-shot backend container, through the entrypoint that reads its secrets,
+under the deployment lock, and is journaled.
 
 ```console
-sudo morzer secret generate assistant_api_key
+sudo morzer task list                   # the tasks, and which this machine may run
+sudo morzer task run seed -- --size s   # demo data, into an empty database
+sudo morzer task run repair             # give back stock that closed or deleted plans hold
 ```
+
+`seed` runs on a dev machine only: a production machine refuses it by name, and
+`--force` does not override that. It refuses a database that holds data. Its
+sizes are `xs`, `s`, `m` (the default) and `l`, and `--seed N` draws a
+different history.
 
 ## Updating
 
@@ -375,6 +383,18 @@ and then the database and files, re-applies the release and runs the smoke
 test. It is destructive and needs both `--force` and the installation id typed
 as `--confirm`; `morzer status` prints the installation id. Anything written
 since the backup is gone, not left beside the restored data.
+
+## Removing an installation
+
+```console
+sudo morzer installation remove --dry-run --force   # what it would remove
+sudo morzer installation remove --force             # keeps the volumes, data, backups and secret state
+sudo morzer installation remove --force --purge     # removes those too
+```
+
+A production installation also needs `--confirm <installation-id>`, which
+`morzer status` prints. Nothing on a backup target is removed. A machine left
+by a failed `init` is cleaned with `--product erp --force`.
 
 ## Recovering a lost machine
 
