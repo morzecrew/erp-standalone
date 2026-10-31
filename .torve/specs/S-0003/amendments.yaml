@@ -21,3 +21,26 @@ amendments:
       its reusable workflows and keeps only the callers, components.yaml and its smoke
       hooks. The password rotation is now the smoke hook `.github/smoke.d/30-rotate-db-password.sh`,
       and the rehearsal is bundle-ci's.
+  - id: A-2
+    at: '2026-10-31T16:48:04Z'
+    title: >-
+      pgbouncer and rustfs: any build whose user is root
+    changes:
+      - subject: D-3
+        field: text
+        before: >-
+          `bundle/manifest.yaml` pins `pgbouncer` to `ghcr.io/morzecrew/pgbouncer:1.26.1@sha256:e635cf38f11976fc6e661eece67206786645fc54be3994b3ba4509462268f5cc`
+          and `rustfs` to `ghcr.io/morzecrew/rustfs:1.0.4@sha256:745fe470d4d611c34b04dd7f16b99289c40b16a39db8f7a18c8f5b4a87e6dec9`,
+          the platform-images S-0003 builds published from 4c1bf04, whose user is
+          root.
+        after: >-
+          `bundle/manifest.yaml` pins `pgbouncer` and `rustfs` to platform-images
+          builds whose user is root: S-0003's, published from 4c1bf04 on.
+      - subject: D-3
+        field: fingerprint
+        after: 14e16cff008b4ef6/b6b3b43e2ac1f7b1
+    md: >-
+      D-3 named the two digests it needed, so every rebuild of those tags was an
+      amendment. What D-1 and D-2 need is a build whose user is root, which every
+      platform-images build from 4c1bf04 on is; the 2026-10-31 builds the manifest now
+      pins, the ones erp-backend's CI tests, still are.

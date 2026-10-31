@@ -79,14 +79,15 @@ parameters:
     description: The model the assistant asks its endpoint for
     services: [backend, worker]
 # Infrastructure pinned by digest as `repo:tag@sha256:`, the tag kept for
-# Renovate. The three components carry `main` and an all-zero digest until
+# Renovate: the digests erp-backend's compose and its flyway base pin, so what
+# its CI tests is what ships. The three components carry `main` and an all-zero digest until
 # bundle-ci's pin.sh writes their real digests.
 images:
-  postgres: ghcr.io/morzecrew/postgres:18.6@sha256:4a8e0a615b016b4eca04b391a76eb98af770cae540a1fa57e1980bc9909a51de
-  pgbouncer: ghcr.io/morzecrew/pgbouncer:1.26.1@sha256:e635cf38f11976fc6e661eece67206786645fc54be3994b3ba4509462268f5cc
-  valkey: ghcr.io/morzecrew/valkey:9.1@sha256:1c8e68025a1c3bee42f37091d9149a99ec68131f10df340bbe29d2ff47b42037
-  rustfs: ghcr.io/morzecrew/rustfs:1.0.4@sha256:745fe470d4d611c34b04dd7f16b99289c40b16a39db8f7a18c8f5b4a87e6dec9
-  flyway: ghcr.io/morzecrew/flyway:13.11@sha256:82de3f12a8be91b2f588a33a26345ee7ba49797c29568b4241e4163432e0deeb
+  postgres: ghcr.io/morzecrew/postgres:18.6@sha256:d02f8ccb7d0d6e191b8996b1b40beba2fc1b425f10dbadcfcc5722ceded55e9b
+  pgbouncer: ghcr.io/morzecrew/pgbouncer:1.26.1@sha256:6b7fb128ebbf6e8520743bee3e020ee0bc9cf010e37e4145c6a1c3238cb513fe
+  valkey: ghcr.io/morzecrew/valkey:9.1@sha256:3d63c89ea031c58e9dfb21054fff70b17927dcb310ff2304c182d9de78b41576
+  rustfs: ghcr.io/morzecrew/rustfs:1.0.4@sha256:70a17071fedd76f2d5378b1226825f43e03c28d14b8d844d1c8b1e41dec67a73
+  flyway: ghcr.io/morzecrew/flyway:13.11@sha256:c9802bd2a962f5ec7980b5f483ecdeb959aae14a332c1f73df305854ce795014
   caddy: ghcr.io/morzecrew/caddy:2.11.7@sha256:fa5515ca8c92cfc1731a518da984834ff5fceb8bf3380bf453a60f9710d47c9f
   backend: ghcr.io/morzecrew/erp-backend:main@sha256:126668e1a0c1f54db4f290188e65ea655f4ba2303695cbb32f148f2ed43d9a28
   migrations: ghcr.io/morzecrew/erp-migrations:main@sha256:8028ea651bc8fbfd32e09200e82422ffd6b14cadee0dca3d32586f6c6ea219b5
