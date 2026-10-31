@@ -89,8 +89,8 @@ images:
   rustfs: ghcr.io/morzecrew/rustfs:1.0.4@sha256:70a17071fedd76f2d5378b1226825f43e03c28d14b8d844d1c8b1e41dec67a73
   flyway: ghcr.io/morzecrew/flyway:13.11@sha256:c9802bd2a962f5ec7980b5f483ecdeb959aae14a332c1f73df305854ce795014
   caddy: ghcr.io/morzecrew/caddy:2.11.7@sha256:fa5515ca8c92cfc1731a518da984834ff5fceb8bf3380bf453a60f9710d47c9f
-  backend: ghcr.io/morzecrew/erp-backend:main@sha256:71e3cc2b564a6dfa7355d98eeb97f1e3693cd5697f74ae4740c2dc8ed5470a72
-  migrations: ghcr.io/morzecrew/erp-migrations:main@sha256:c5bb01282cf6b0b161a90de899e5674b3ce135b71c2285454d512720537f7326
+  backend: ghcr.io/morzecrew/erp-backend:main@sha256:9f3a0030a4b2777ba8ecfc745d40687262f4f28da5be764839445e2fa73e15c7
+  migrations: ghcr.io/morzecrew/erp-migrations:main@sha256:741e9c5e41e0720c1959dd35235dfc7ad8fbd33b7f8a9c2147011da0a095135f
   frontend: ghcr.io/morzecrew/erp-frontend:main@sha256:9587db614741a76e017ca03b90b63d04fe536197ac4df45ebffa662502f71604
 secrets:
   source: /etc/erp/secrets.sops.yaml
