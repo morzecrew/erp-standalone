@@ -89,8 +89,8 @@ images:
   rustfs: ghcr.io/morzecrew/rustfs:1.0.4@sha256:70a17071fedd76f2d5378b1226825f43e03c28d14b8d844d1c8b1e41dec67a73
   flyway: ghcr.io/morzecrew/flyway:13.11@sha256:c9802bd2a962f5ec7980b5f483ecdeb959aae14a332c1f73df305854ce795014
   caddy: ghcr.io/morzecrew/caddy:2.11.7@sha256:fa5515ca8c92cfc1731a518da984834ff5fceb8bf3380bf453a60f9710d47c9f
-  backend: ghcr.io/morzecrew/erp-backend:main@sha256:9842e1957d5fb29024abe1823eabd9a29d0cecb9eb26e96b31c82ec4a3e9c73b
-  migrations: ghcr.io/morzecrew/erp-migrations:main@sha256:78d56b412d4c02676b7f2919f26dc64d19f023556734d0c397822b147aca39f2
+  backend: ghcr.io/morzecrew/erp-backend:main@sha256:c202c5d0edf5de6e990feb202e73d250487a33245de9bfea82c4de0e27f830a7
+  migrations: ghcr.io/morzecrew/erp-migrations:main@sha256:6b6480832f030f73a44dabd64f780fa0bad00711e9ed2ed0c12edd871a2c94b8
   frontend: ghcr.io/morzecrew/erp-frontend:main@sha256:7c8096f1c9fcba638ec3e349e3bd1f6a6a48b46cba9759bd80a4741811724719
 secrets:
   source: /etc/erp/secrets.sops.yaml
@@ -167,9 +167,9 @@ compatibility:
   # The migrations image's `tech.morze.erp.schema` label, written by
   # bundle-ci's pin.sh; 0 until it runs. Each release reads only the schema it
   # produces.
-  database_schema_produces: 42
-  database_schema_min: 42
-  database_schema_max: 42
+  database_schema_produces: 43
+  database_schema_min: 43
+  database_schema_max: 43
   # Between two releases on one schema -- where `database_schema_min` = `max` =
   # `produces` -- morzer rolls back, and returns from a failed update by itself
   # (exit 11). Across a schema change it refuses the rollback, naming the
