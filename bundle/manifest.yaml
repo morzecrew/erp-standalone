@@ -91,7 +91,7 @@ images:
   caddy: ghcr.io/morzecrew/caddy:2.11.7@sha256:fa5515ca8c92cfc1731a518da984834ff5fceb8bf3380bf453a60f9710d47c9f
   backend: ghcr.io/morzecrew/erp-backend:main@sha256:8977a82ffb913dd1b72eccdb118294c14a2f65e9aa7374f363a0180ea1bdc9c2
   migrations: ghcr.io/morzecrew/erp-migrations:main@sha256:272f407d85dca48ce22ab9801c48fd90f29428180ef6960691da556a018ae9e9
-  frontend: ghcr.io/morzecrew/erp-frontend:main@sha256:44d3f9337a9c55f8966fe070ff65df5b7d16a2a32ae2ded3281e30e1bfb2e25c
+  frontend: ghcr.io/morzecrew/erp-frontend:main@sha256:8c44b1251dee1f4c8a12c527ce0dda92616349b23098e66600c5176d2c6d9f26
 secrets:
   source: /etc/erp/secrets.sops.yaml
   render_to: /run/erp/secrets
