@@ -444,4 +444,28 @@ decisions:
       reached it).
     cites: [D-15, D-16, D-28]
     fingerprint: 0af9e0176ca0c859/191ac44710bb590d
+  - id: D-30
+    grade: ASSUMED
+    text: >-
+      A third task beside D-26's two: `reset` (`service: reset`, `command: [seed]`,
+      `args: true`, `modes: [dev]`, `timeout: 45m`) runs a Compose chain behind the
+      `reset` profile — `reset-wipe` drops the `erp` database `WITH (FORCE)` and makes
+      it again, `reset-valkey` deletes every key but the realtime stream,
+      `reset-migrate` and `reset-bootstrap` are `flyway` and `bootstrap` again, and
+      `reset` is the bootstrap's image running the seed with the task's arguments
+    paths:
+      - bundle/manifest.yaml
+      - bundle/compose/compose.yaml
+      - .github/smoke.d/40-reset.sh
+    consequence: >-
+      a dev machine starts over without reinstalling: the secrets, the settings, the
+      certificates and RustFS's files stay, and the backend and worker keep running,
+      their pools reconnecting and the worker's stream group kept. Everyone is signed
+      out; the admin and the demo users are made again
+    rationale: >-
+      The owner, 2026-11-04: reinstalling the bundle to get fresh demo data was the
+      manual step to avoid. erp-backend's number counters moved to Postgres for it, so
+      dropping the database starts them over; Valkey's stream keeps its consumer
+      group, made only when the worker starts. bi-standalone's reset is the pattern.
+    cites: [D-26]
 retired: [D-15]

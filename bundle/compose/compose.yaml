@@ -114,9 +114,10 @@ services:
     image: ${ERP_IMAGE_VALKEY}
     restart: unless-stopped
     environment:
-      # Durable, not a cache: every document's number_id is a counter here. AOF
-      # loses at most a second of increments, and a full memory refuses writes
-      # rather than evicting a counter.
+      # Durable, not a cache: the login lockout counters, the requirements
+      # recalculation lock and the realtime stream live here; the number_id
+      # counters moved to Postgres with the rows they number. AOF loses at most a
+      # second of writes, and a full memory refuses writes rather than evicting.
       VALKEY_PERSISTENCE: aof
       VALKEY_MAXMEMORY_POLICY: noeviction
       VALKEY_PASSWORD_FILE: /run/secrets/valkey_password
@@ -233,7 +234,7 @@ services:
   # The migrate steps. `up` leaves the `ops` profile out; morzer's
   # `docker compose run` still reaches them.
 
-  flyway:
+  flyway: &flyway
     image: ${ERP_IMAGE_FLYWAY}
     profiles: [ops]
     restart: "no"
@@ -265,7 +266,7 @@ services:
       postgres:
         condition: service_healthy
 
-  bootstrap:
+  bootstrap: &bootstrap
     image: ${ERP_IMAGE_BACKEND}
     profiles: [ops]
     restart: "no"
@@ -285,6 +286,85 @@ services:
       - assistant_api_key
       - admin_password
     depends_on: *backend-depends-on
+
+  # A dev machine's fresh start, by `morzer task run reset`: the task runs `reset`,
+  # and Compose runs the chain before it — the database dropped and made again,
+  # every Valkey key but the realtime stream deleted, the migrations, the
+  # bootstrap, then the seed with the task's arguments, as a first apply and a
+  # `seed` would. The backend and worker keep running: FORCE ends their sessions,
+  # their pools reconnect to the new database, and the worker's stream group stays.
+  # pg_cron's launcher, ended with the database, restarts by itself and finds its
+  # jobs once the migrations made them again. Files in RustFS stay, no record
+  # pointing at them; a task runs in a container and cannot empty a volume.
+
+  reset-wipe:
+    image: ${ERP_IMAGE_POSTGRES}
+    profiles: [reset]
+    restart: "no"
+    entrypoint: ["sh", "-ec"]
+    command:
+      - |
+        PGPASSWORD=$$(cat /run/secrets/postgres_password)
+        export PGPASSWORD
+        psql --host=postgres --username=postgres --dbname=postgres -v ON_ERROR_STOP=1 <<'SQL'
+        DROP DATABASE IF EXISTS erp WITH (FORCE);
+        CREATE DATABASE erp;
+        SQL
+    secrets:
+      - postgres_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Caches, lockouts and the recalculation lock go with the records they stood
+  # for; the stream stays, its consumer group made only when the worker starts.
+  reset-valkey:
+    image: ${ERP_IMAGE_VALKEY}
+    profiles: [reset]
+    restart: "no"
+    entrypoint: ["sh", "-ec"]
+    command:
+      - |
+        VALKEYCLI_AUTH=$$(cat /run/secrets/valkey_password)
+        export VALKEYCLI_AUTH
+        cli() { valkey-cli --no-auth-warning -h valkey "$$@"; }
+        cli --scan | while read -r key; do
+          [ "$$(cli type "$$key")" = stream ] || cli del "$$key" >/dev/null
+        done
+    secrets:
+      - valkey_password
+    depends_on:
+      valkey:
+        condition: service_healthy
+      reset-wipe:
+        condition: service_completed_successfully
+
+  reset-migrate:
+    <<: *flyway
+    profiles: [reset]
+    depends_on:
+      reset-valkey:
+        condition: service_completed_successfully
+
+  reset-bootstrap:
+    <<: *bootstrap
+    profiles: [reset]
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+      reset-migrate:
+        condition: service_completed_successfully
+
+  # The seed, its demo users signing in with the admin's password.
+  reset:
+    <<: *bootstrap
+    profiles: [reset]
+    command: ["seed"]
+    depends_on:
+      reset-bootstrap:
+        condition: service_completed_successfully
 
 configs:
   postgres-cron:
