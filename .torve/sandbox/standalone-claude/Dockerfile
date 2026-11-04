@@ -8,8 +8,8 @@
 # release's checksum file (zizmor publishes none: its pin is the archive's hash
 # on 2026-10-23). amd64 only, as the host is.
 #
-#   docker build -t standalone-claude-sandbox:2.1.283-torve0.7.0 .torve/sandbox/standalone-claude
-ARG BASE=ghcr.io/morzecrew/claude-sandbox:2.1.283-torve0.7.0
+#   docker build -t standalone-claude-sandbox:2.1.283-torve0.8.0 .torve/sandbox/standalone-claude
+ARG BASE=ghcr.io/morzecrew/claude-sandbox:2.1.283-torve0.8.0
 FROM ${BASE}
 
 ARG MORZER=0.9.0
