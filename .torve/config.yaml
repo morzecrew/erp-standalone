@@ -2,11 +2,11 @@
 # erp-standalone under torve: the seats platform-images and erp-backend run, the
 # lab store, and a pull request per document that a person merges.
 schema_version: 1
-engine: "0.7.0"
+engine: "0.8.0"
 
 runtime:
   adapter: docker
-  image: standalone-claude-sandbox:2.1.283-torve0.7.0   # .torve/sandbox/standalone-claude/
+  image: standalone-claude-sandbox:2.1.283-torve0.8.0   # .torve/sandbox/standalone-claude/
   # The gates sandbox gets a Docker daemon of its own, in a privileged side
   # container, for `edge-smoke`; the attempt gets one too, so an agent can run
   # what its gates will. Its egress is the host proxy at the bridge gateway,
