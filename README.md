@@ -277,13 +277,26 @@ under the deployment lock, and is journaled.
 ```console
 sudo morzer task list                   # the tasks, and which this machine may run
 sudo morzer task run seed -- --size s   # demo data, into an empty database
+sudo morzer task run reset -- --size m --seed acme   # start over: drop, migrate, seed
 sudo morzer task run repair             # give back stock that closed or deleted plans hold
 ```
 
-`seed` runs on a dev machine only: a production machine refuses it by name, and
-`--force` does not override that. It refuses a database that holds data. Its
-sizes are `xs`, `s`, `m` (the default) and `l`, and `--seed N` draws a
-different history.
+`seed` and `reset` run on a dev machine only: a production machine refuses them
+by name, and `--force` does not override that.
+
+`seed` refuses a database that holds data. It generates a history ending today:
+its sizes are `s`, `m` (the default) and `l`, the breadth of the catalogue and
+of the work; `--months N` is how much history, 3 for `s` and 12 for `m` and
+`l` by default; and `--seed` takes a number or any text, one seed telling one
+story. It adds a `demo-<role>` user for each role but the admin's, signing in
+with the admin's password. A year of `m` takes about four minutes.
+
+`reset` starts a dev machine over without reinstalling it. It drops the
+database and makes it again, deletes Valkey's keys but the realtime stream,
+migrates, bootstraps and seeds, taking `seed`'s arguments. The secrets, the
+settings and the certificates stay, and so do the files in RustFS, which no
+record points at any more. Everyone is signed out: the admin is made again from
+its secret, and the demo users with it.
 
 ## Updating
 

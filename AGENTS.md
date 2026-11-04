@@ -68,8 +68,8 @@ Each of these carries a managed `AGENTS.md` section listing the decisions
 and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 `<file>` and `torve spec tests S-NNNN/D-n` read the same corpus from the worktree.
 
-- `bundle/` — 20 decision(s)
-- `bundle/compose/` — 12 decision(s)
+- `bundle/` — 21 decision(s)
+- `bundle/compose/` — 13 decision(s)
 - `bundle/edge/` — 1 decision(s)
 - `bundle/hooks/` — 3 decision(s)
 - `scripts/` — 0 decision(s)

@@ -131,20 +131,32 @@ operations:
 # image's entrypoint, which loads the `*_FILE` secrets.
 tasks:
   seed:
-    description: "Fill an empty database with demo data (-- --size xs|s|m|l --seed N)"
+    description: "Fill an empty database with demo data (-- --size s|m|l --seed TEXT --months N)"
     service: backend
     command: [seed]
     args: true
     modes: [dev]
     timeout: 30m
+  # Drops the database, deletes Valkey's keys but the realtime stream, then
+  # migrates, bootstraps and seeds as a first apply and `seed` would. A task runs
+  # in a container, not on the host, so it cannot remove volumes; the secrets,
+  # the settings, the certificates and RustFS's files stay.
+  reset:
+    description: "Drop every record, migrate and bootstrap again, then seed (-- --size s|m|l --seed TEXT --months N); secrets and settings stay"
+    service: reset
+    command: [seed]
+    args: true
+    modes: [dev]
+    timeout: 45m
   repair:
     description: Give back to free stock what closed or deleted plans still hold
     service: backend
     command: [repair]
 backup:
   volumes:
-    # Postgres and Valkey stop together, so a restore never pairs Valkey's
-    # number_id counters with a database holding higher numbers.
+    # Postgres and Valkey stop together, so a restore brings back the lockouts
+    # and the realtime stream from the moment the database was taken. The
+    # number_id counters are in Postgres, beside the rows they number.
     postgres-data: {consistency: cold}
     valkey-data: {consistency: cold}
     rustfs-data: {consistency: cold}
