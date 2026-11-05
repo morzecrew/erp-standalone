@@ -478,3 +478,33 @@ amendments:
       bundle-ci tagged v0.1.1, whose `bundle-ci-ref` defaults name the release, so
       the callers pin its commit with `# v0.1.1` beside it and pass no `bundle-ci-ref`.
       Renovate's github-actions manager moves the pin and its comment together.
+  - id: A-19
+    at: '2026-11-05T09:21:33Z'
+    title: The README is a short quick start
+    changes:
+      - subject: D-22
+        field: text
+        before: >-
+          The README covers installing on a dev VM following `:main` and a customer
+          VM following `:stable`, updating, rolling back, backing up, and restoring
+          Postgres and Valkey together; setting the operator secrets; the ghcr login
+          for root's Docker; `backup.before_update=false` on the dev VM; and changing
+          the database password with `ALTER ROLE`. It recommends no image prune.
+        after: >-
+          The README is an operator's quick start, short because the repository is
+          public: what the stack runs, the requirements, installing from `:stable`
+          with root's Docker logged in to ghcr, the one operator secret, the channels,
+          the day-to-day commands (status, doctor, logs, update, rollback, backup,
+          restore, support) and which failed updates recover by themselves, restoring
+          whole backups only, no image prune, rotating the database password, the
+          assistant and the tasks; morzer's documentation holds the rest. Maintainer
+          procedures (a dev VM's setup, CI runners, cutting a release, rehearsal,
+          registry housekeeping) are not in it
+      - subject: D-22
+        field: fingerprint
+        after: 1420add604965b02/5857d8d6dcd5bde0
+    md: >-
+      The repository is public, and its README had grown to 620 lines of operator
+      and maintainer detail: CI runners, the release procedure, the registry's
+      storage budget. It now holds an operator's quick start, and morzer's own
+      documentation the rest.

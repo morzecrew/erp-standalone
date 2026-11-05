@@ -44,3 +44,32 @@ amendments:
       amendment. What D-1 and D-2 need is a build whose user is root, which every
       platform-images build from 4c1bf04 on is; the 2026-10-31 builds the manifest now
       pins, the ones erp-backend's CI tests, still are.
+  - id: A-3
+    at: '2026-11-05T09:21:35Z'
+    title: The README is a short quick start
+    changes:
+      - subject: D-7
+        field: text
+        before: >-
+          The README's "The operator secrets" names `admin_password` as the one secret
+          the operator sets, lists the generated ones and their owners, and drops
+          the pairs. "Changing the database password" becomes: a backup, `sudo morzer
+          secret rotate postgres_password`, then `sudo morzer apply`, run together.
+          `bundle/RELEASE.md`'s "Before you install" names only `admin_password`.
+          The CHANGELOG's Unreleased section says the infrastructure secrets are generated
+          and that the operator sets only `admin_password`.
+        after: >-
+          The README names `admin_password` as the one secret the operator sets, and
+          changes the database password with a backup, `sudo morzer secret rotate
+          postgres_password`, then `sudo morzer apply`, run together. `bundle/RELEASE.md`'s
+          "Before you install" names only `admin_password`. The CHANGELOG's Unreleased
+          section says the infrastructure secrets are generated and that the operator
+          sets only `admin_password`.
+      - subject: D-7
+        field: fingerprint
+        after: 0f8dbaac30f038e5/29a7aec1169c54ac
+    md: >-
+      The repository is public, and its README had grown to 620 lines of operator
+      and maintainer detail: CI runners, the release procedure, the registry's
+      storage budget. It now holds an operator's quick start, and morzer's own
+      documentation the rest.

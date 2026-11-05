@@ -323,11 +323,15 @@ decisions:
   - id: D-22
     grade: ASSUMED
     text: >-
-      The README covers installing on a dev VM following `:main` and a customer VM
-      following `:stable`, updating, rolling back, backing up, and restoring Postgres
-      and Valkey together; setting the operator secrets; the ghcr login for root's
-      Docker; `backup.before_update=false` on the dev VM; and changing the database
-      password with `ALTER ROLE`. It recommends no image prune.
+      The README is an operator's quick start, short because the repository is public:
+      what the stack runs, the requirements, installing from `:stable` with root's
+      Docker logged in to ghcr, the one operator secret, the channels, the day-to-day
+      commands (status, doctor, logs, update, rollback, backup, restore, support)
+      and which failed updates recover by themselves, restoring whole backups only,
+      no image prune, rotating the database password, the assistant and the tasks;
+      morzer's documentation holds the rest. Maintainer procedures (a dev VM's setup,
+      CI runners, cutting a release, rehearsal, registry housekeeping) are not in
+      it
     paths: [/README.md, /CHANGELOG.md]
     consequence: >-
       an operator can run both channels from the README alone, and a manual prune
@@ -335,6 +339,7 @@ decisions:
     rationale: >-
       morzer 0.6.0 removes a pruned release's images and 0.5.0 prunes old pre-update
       backups, so the brief's weekly prune now only breaks rollback.
+    fingerprint: 1420add604965b02/5857d8d6dcd5bde0
   - id: D-23
     grade: OPEN
     text: >-
