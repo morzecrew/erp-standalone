@@ -549,3 +549,26 @@ amendments:
       With 2,000 open screens the edge held 1.5–2.6 GB: about 0.5 MB a stream for
       compression and 0.75 MB for the WAF's transaction, kept for the life of the
       stream. The stream is a GET with no body, and the WAF here only logs.
+  - id: A-22
+    at: '2026-11-05T10:07:37Z'
+    title: The edge's memory is capped
+    changes:
+      - subject: D-10
+        field: text
+        before: >-
+          The edge serves `${ERP_DOMAIN:-:80}, :8081` with `CADDY_AUTO_HTTPS: "on"`,
+          publishes `http_port` on 80, `https_port` on 443 and `health_port` on loopback
+          8081, and keeps certificates in the `edge-data` volume.
+        after: >-
+          The edge serves `${ERP_DOMAIN:-:80}, :8081` with `CADDY_AUTO_HTTPS: "on"`,
+          publishes `http_port` on 80, `https_port` on 443 and `health_port` on loopback
+          8081, and keeps certificates in the `edge-data` volume. Its memory is capped
+          at 1 GiB (`deploy.resources.limits.memory: 1g`), from which the caddy image
+          sets `GOMEMLIMIT` to 90%.
+      - subject: D-10
+        field: fingerprint
+        after: 2a316355f05c549e/3769111d435c5001
+    md: >-
+      With no limit on the container, caddy set no Go memory limit, and the heap a
+      burst of connections grew stayed. The WAF holds a request body of up to
+      51 MiB while it inspects it, so the cap leaves room for a few uploads at once.

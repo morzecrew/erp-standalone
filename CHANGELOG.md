@@ -63,6 +63,9 @@ head of `main`; the first tagged release seals this section under its version.
 
 ### Changed
 
+- The edge is capped at 1 GiB of memory, and hands back what a burst of open
+  screens or uploads took once it ends: caddy sets its Go memory limit from
+  the container's
 - The edge holds much less memory per open screen: it no longer compresses the
   live event stream, and a `GET` to `/v1/realtime/events` skips the WAF (caddy
   2.11.8). Each open screen held about 1 MB at the edge, and 2,000 of them

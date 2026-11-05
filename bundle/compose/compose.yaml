@@ -225,6 +225,14 @@ services:
       - ${ERP_RELEASE_DIR:?ERP_RELEASE_DIR is set by morzer}/edge/erp.caddy:/etc/caddy/config.d/erp.caddy:ro
       # Certificates: losing them means asking Let's Encrypt again.
       - edge-data:/data
+    deploy:
+      resources:
+        limits:
+          # The image sets GOMEMLIMIT to 90% of this, so the heap a burst of open
+          # screens or uploads grew is handed back. The WAF holds a request's body,
+          # up to 51 MiB, while it inspects it: a few uploads at once take a few
+          # hundred MB.
+          memory: 1g
     depends_on:
       - backend
       - frontend
