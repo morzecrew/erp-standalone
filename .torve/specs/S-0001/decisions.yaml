@@ -65,8 +65,10 @@ decisions:
     text: >-
       The backend, worker and bootstrap reach Postgres through `pgbouncer` (`POSTGRES__USE_PGBOUNCER:
       "true"`, `POSTGRES__PGBOUNCER_HOST: pgbouncer`, `POSTGRES__PGBOUNCER_PORT: 6432`),
-      on the image's transaction pooling and pool of 30. `flyway` connects to `postgres`
-      directly.
+      on the image's transaction pooling with a pool of 12 (`PGBOUNCER_CONF__default_pool_size`)
+      and its 10 in reserve. Postgres runs with glibc's `mmap_threshold` and `trim_threshold`
+      at 128 KiB (`GLIBC_TUNABLES`), so a backend hands back what a query freed. `flyway`
+      connects to `postgres` directly.
     paths: [bundle/compose/compose.yaml]
     consequence: >-
       the backend runs in the topology erp-backend's e2e suite tests, and its processes'
@@ -77,6 +79,7 @@ decisions:
       an update hold up to 60 pool connections, which is all of `max_connections`;
       the pooler takes them all and opens at most 30. Flyway takes session locks,
       which transaction pooling breaks.
+    fingerprint: a194fe92846d874d/3769111d435c5001
   - id: D-6
     grade: LOCKED
     text: >-
@@ -450,9 +453,9 @@ decisions:
       A third task beside D-26's two: `reset` (`service: reset`, `command: [seed]`,
       `args: true`, `modes: [dev]`, `timeout: 45m`) runs a Compose chain behind the
       `reset` profile — `reset-wipe` drops the `erp` database `WITH (FORCE)` and makes
-      it again, `reset-valkey` deletes every key but the realtime stream,
-      `reset-migrate` and `reset-bootstrap` are `flyway` and `bootstrap` again, and
-      `reset` is the bootstrap's image running the seed with the task's arguments
+      it again, `reset-valkey` deletes every key but the realtime stream, `reset-migrate`
+      and `reset-bootstrap` are `flyway` and `bootstrap` again, and `reset` is the
+      bootstrap's image running the seed with the task's arguments
     paths:
       - bundle/manifest.yaml
       - bundle/compose/compose.yaml
@@ -464,8 +467,8 @@ decisions:
       out; the admin and the demo users are made again
     rationale: >-
       The owner, 2026-11-04: reinstalling the bundle to get fresh demo data was the
-      manual step to avoid. erp-backend's number counters moved to Postgres for it, so
-      dropping the database starts them over; Valkey's stream keeps its consumer
+      manual step to avoid. erp-backend's number counters moved to Postgres for it,
+      so dropping the database starts them over; Valkey's stream keeps its consumer
       group, made only when the worker starts. bi-standalone's reset is the pattern.
     cites: [D-26]
 retired: [D-15]

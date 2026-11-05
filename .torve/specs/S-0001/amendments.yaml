@@ -478,3 +478,30 @@ amendments:
       bundle-ci tagged v0.1.1, whose `bundle-ci-ref` defaults name the release, so
       the callers pin its commit with `# v0.1.1` beside it and pass no `bundle-ci-ref`.
       Renovate's github-actions manager moves the pin and its comment together.
+  - id: A-19
+    at: '2026-11-05T00:46:50Z'
+    title: A pool of 12, and Postgres hands memory back
+    changes:
+      - subject: D-5
+        field: text
+        before: >-
+          The backend, worker and bootstrap reach Postgres through `pgbouncer` (`POSTGRES__USE_PGBOUNCER:
+          "true"`, `POSTGRES__PGBOUNCER_HOST: pgbouncer`, `POSTGRES__PGBOUNCER_PORT:
+          6432`), on the image's transaction pooling and pool of 30. `flyway` connects
+          to `postgres` directly.
+        after: >-
+          The backend, worker and bootstrap reach Postgres through `pgbouncer` (`POSTGRES__USE_PGBOUNCER:
+          "true"`, `POSTGRES__PGBOUNCER_HOST: pgbouncer`, `POSTGRES__PGBOUNCER_PORT:
+          6432`), on the image's transaction pooling with a pool of 12 (`PGBOUNCER_CONF__default_pool_size`)
+          and its 10 in reserve. Postgres runs with glibc's `mmap_threshold` and `trim_threshold`
+          at 128 KiB (`GLIBC_TUNABLES`), so a backend hands back what a query freed.
+          `flyway` connects to `postgres` directly.
+      - subject: D-5
+        field: fingerprint
+        after: a194fe92846d874d/3769111d435c5001
+    md: >-
+      erp-backend's stress stack, the bundle's shape on 4 vCPU, measured Postgres's private
+      memory under 16 busy clients for six minutes: 6.4 GB with glibc's defaults and
+      the image's pool of 30, because each backend kept the most its queries had
+      ever allocated. With the tunables it was 2.6 GB, and with a pool of 12 as well,
+      1.4 GB, at the same throughput.
