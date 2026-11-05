@@ -50,7 +50,7 @@ decisions:
     grade: ASSUMED
     text: >-
       The infrastructure images are `ghcr.io/morzecrew/postgres:18.6`, `pgbouncer:1.26.1`,
-      `valkey:9.1`, `rustfs:1.0.3`, `flyway:13.11` and `caddy:2.11.7`, each reading
+      `valkey:9.1`, `rustfs:1.0.4`, `flyway:13.11` and `caddy:2.11.8`, each reading
       its credential from a `*_FILE` variable.
     paths: [bundle/manifest.yaml]
     consequence: >-
@@ -60,6 +60,7 @@ decisions:
       `valkey:9.2` was built on 9.2.0-rc1, whose RDB 9.1 cannot read, and was withdrawn
       (platform-images #70). Upstream `rustfs/rustfs` accepts its default credential;
       the platform image refuses it. flyway moved to 13.11 in platform-images #96.
+    fingerprint: 475ead2512540389/b6b3b43e2ac1f7b1
   - id: D-5
     grade: ASSUMED
     text: >-
@@ -167,6 +168,8 @@ decisions:
     grade: ASSUMED
     text: >-
       `CADDY_REQUEST_BODY_MAX_SIZE` is `51MiB`, and `CADDY_WAF_ENGINE` is `DetectionOnly`.
+      `CADDY_WAF_SKIP_PATHS` is `/v1/realtime/events`: a `GET` there, the open screens'
+      event stream, skips the WAF, and any other method to it is still inspected.
     paths: [bundle/compose/compose.yaml]
     consequence: >-
       a 50 MiB attachment passes and anything past 51 MiB gets 413; the WAF blocks
@@ -177,6 +180,7 @@ decisions:
       caddy image's WAF follows this limit. The owner chose no WAF for now (2026-10-23);
       the image refuses any value but `On` and `DetectionOnly`, and `DetectionOnly`
       blocks nothing.
+    fingerprint: 28db8bf8de1b1149/3769111d435c5001
   - id: D-12
     grade: ASSUMED
     text: >-

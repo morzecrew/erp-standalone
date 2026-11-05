@@ -508,3 +508,44 @@ amendments:
       and maintainer detail: CI runners, the release procedure, the registry's
       storage budget. It now holds an operator's quick start, and morzer's own
       documentation the rest.
+  - id: A-20
+    at: '2026-11-05T10:01:51Z'
+    title: The edge holds less memory per open stream
+    changes:
+      - subject: D-4
+        field: text
+        before: >-
+          The infrastructure images are `ghcr.io/morzecrew/postgres:18.6`, `pgbouncer:1.26.1`,
+          `valkey:9.1`, `rustfs:1.0.3`, `flyway:13.11` and `caddy:2.11.7`, each reading
+          its credential from a `*_FILE` variable.
+        after: >-
+          The infrastructure images are `ghcr.io/morzecrew/postgres:18.6`, `pgbouncer:1.26.1`,
+          `valkey:9.1`, `rustfs:1.0.4`, `flyway:13.11` and `caddy:2.11.8`, each reading
+          its credential from a `*_FILE` variable.
+      - subject: D-4
+        field: fingerprint
+        after: 475ead2512540389/b6b3b43e2ac1f7b1
+    md: >-
+      platform-images' caddy 2.11.8 no longer compresses `text/event-stream`, which
+      held a compressor for each open stream. The rustfs tag was already 1.0.4 in
+      the manifest.
+  - id: A-21
+    at: '2026-11-05T10:01:52Z'
+    title: The edge skips the WAF on the event stream
+    changes:
+      - subject: D-11
+        field: text
+        before: >-
+          `CADDY_REQUEST_BODY_MAX_SIZE` is `51MiB`, and `CADDY_WAF_ENGINE` is `DetectionOnly`.
+        after: >-
+          `CADDY_REQUEST_BODY_MAX_SIZE` is `51MiB`, and `CADDY_WAF_ENGINE` is `DetectionOnly`.
+          `CADDY_WAF_SKIP_PATHS` is `/v1/realtime/events`: a `GET` there, the open
+          screens' event stream, skips the WAF, and any other method to it is still
+          inspected.
+      - subject: D-11
+        field: fingerprint
+        after: 28db8bf8de1b1149/3769111d435c5001
+    md: >-
+      With 2,000 open screens the edge held 1.5–2.6 GB: about 0.5 MB a stream for
+      compression and 0.75 MB for the WAF's transaction, kept for the life of the
+      stream. The stream is a GET with no body, and the WAF here only logs.
