@@ -17,19 +17,12 @@ decisions:
     fingerprint: c5e7c000ca11397d/b6b3b43e2ac1f7b1
   - id: D-4
     grade: ASSUMED
-    text: >-
-      The README names morzer 0.8.0 as the minimum and drops 0.6.0's workarounds:
-      the `doctor`-printed pull of the volume helper (morzer#142), `systemctl start`
-      of the timers (morzer#139), the note that the dev VM's backup setting is what
-      lets an unattended tick install (morzer#134), and `init --repair` after an import
-      (morzer#135). Its "Upgrading morzer" says a machine upgrades morzer before the
-      next bundle, and that one set up under 0.6.0 runs `sudo morzer init --repair`
-      once, or reboots, if its timers never started.
+    text: The README names morzer 0.8.0 as the minimum.
     paths: [/README.md]
     consequence: >-
       the operator's procedures are the shortest ones 0.7.0 supports, and an existing
       machine knows its one extra step
-    fingerprint: 0a51e131c6f16056/f4289ae7acd4559a
+    fingerprint: 88cb04e62fccad6e/f4289ae7acd4559a
   - id: D-5
     grade: ASSUMED
     text: >-

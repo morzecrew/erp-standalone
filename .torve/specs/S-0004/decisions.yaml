@@ -13,19 +13,4 @@ decisions:
     rationale: >-
       erp-backend's expression and variable; the fallback keeps a fork, or a lapsed
       runner pool, building.
-  - id: D-9
-    grade: ASSUMED
-    text: >-
-      The README's CI section names `RUNS_ON` and its fallback, and what a runner
-      needs: amd64, a Docker that allows privileged containers, room for one rig (the
-      release's 20 GiB preflight under `/var/lib/erp` and the bundle's images), on
-      a self-hosted runner room for bundle-ci's image cache under `~/.cache/bundle-ci/oci`
-      (the bundle's private images, readable by the runner's user, off with `image-cache:
-      false`), no `sudo` for its user, and, when it sets `http(s)_proxy`, an address
-      containers reach rather than loopback.
-    paths: [/README.md]
-    consequence: >-
-      whoever adds or replaces a runner knows what it must offer without reading the
-      workflows
-    fingerprint: 9c2edaa4f9b72f63/f4289ae7acd4559a
-retired: [D-2, D-3, D-4, D-5, D-6, D-7, D-8]
+retired: [D-2, D-3, D-4, D-5, D-6, D-7, D-8, D-9]

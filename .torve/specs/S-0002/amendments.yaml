@@ -208,3 +208,17 @@ amendments:
       its reusable workflows and keeps only the callers, components.yaml and its smoke
       hooks. `version.sh`, the build step, the smoke script, `bundle.yml`'s smoke-update
       and the rehearsal script are bundle-ci's.
+  - id: A-7
+    at: '2026-11-05T09:21:34Z'
+    title: The README is a short quick start
+    changes:
+      - subject: D-8
+        field: retired
+        before: /README.md /CHANGELOG.md
+        after: >-
+          The README became a short quick start, whose contents S-0001/D-22 states
+    md: >-
+      The repository is public, and its README had grown to 620 lines of operator
+      and maintainer detail: CI runners, the release procedure, the registry's
+      storage budget. It now holds an operator's quick start, and morzer's own
+      documentation the rest.

@@ -80,13 +80,11 @@ decisions:
   - id: D-7
     grade: ASSUMED
     text: >-
-      The README's "The operator secrets" names `admin_password` as the one secret
-      the operator sets, lists the generated ones and their owners, and drops the
-      pairs. "Changing the database password" becomes: a backup, `sudo morzer secret
-      rotate postgres_password`, then `sudo morzer apply`, run together. `bundle/RELEASE.md`'s
-      "Before you install" names only `admin_password`. The CHANGELOG's Unreleased
-      section says the infrastructure secrets are generated and that the operator
-      sets only `admin_password`.
+      The README names `admin_password` as the one secret the operator sets, and changes
+      the database password with a backup, `sudo morzer secret rotate postgres_password`,
+      then `sudo morzer apply`, run together. `bundle/RELEASE.md`'s "Before you install"
+      names only `admin_password`. The CHANGELOG's Unreleased section says the infrastructure
+      secrets are generated and that the operator sets only `admin_password`.
     paths: [/README.md, bundle/RELEASE.md, /CHANGELOG.md]
     consequence: >-
       an operator reads one secret to set, and one command to change the database
@@ -94,4 +92,5 @@ decisions:
     rationale: >-
       The README's pairs and `\password` steps describe the schema D-1 replaces.
     cites: [S-0001/D-7]
+    fingerprint: 0f8dbaac30f038e5/29a7aec1169c54ac
 retired: [D-4, D-6]
