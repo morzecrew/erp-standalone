@@ -235,3 +235,17 @@ amendments:
       bundle-ci v0.2.0 keeps every image a bundle pins on a self-hosted runner's disk
       and loads the smoke rigs from it, so a runner needs room for that cache too,
       and its user can read the bundle's private images there.
+  - id: A-10
+    at: '2026-11-05T09:21:36Z'
+    title: The README is a short quick start
+    changes:
+      - subject: D-9
+        field: retired
+        before: /README.md
+        after: >-
+          What a CI runner needs is maintainer detail, out of the public README (S-0001/D-22)
+    md: >-
+      The repository is public, and its README had grown to 620 lines of operator
+      and maintainer detail: CI runners, the release procedure, the registry's
+      storage budget. It now holds an operator's quick start, and morzer's own
+      documentation the rest.

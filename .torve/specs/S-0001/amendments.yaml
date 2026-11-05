@@ -479,8 +479,38 @@ amendments:
       the callers pin its commit with `# v0.1.1` beside it and pass no `bundle-ci-ref`.
       Renovate's github-actions manager moves the pin and its comment together.
   - id: A-19
-    at: '2026-11-05T02:02:40Z'
-    title: A pool of 20, and Postgres hands memory back
+    at: '2026-11-05T09:21:33Z'
+    title: The README is a short quick start
+    changes:
+      - subject: D-22
+        field: text
+        before: >-
+          The README covers installing on a dev VM following `:main` and a customer
+          VM following `:stable`, updating, rolling back, backing up, and restoring
+          Postgres and Valkey together; setting the operator secrets; the ghcr login
+          for root's Docker; `backup.before_update=false` on the dev VM; and changing
+          the database password with `ALTER ROLE`. It recommends no image prune.
+        after: >-
+          The README is an operator's quick start, short because the repository is
+          public: what the stack runs, the requirements, installing from `:stable`
+          with root's Docker logged in to ghcr, the one operator secret, the channels,
+          the day-to-day commands (status, doctor, logs, update, rollback, backup,
+          restore, support) and which failed updates recover by themselves, restoring
+          whole backups only, no image prune, rotating the database password, the
+          assistant and the tasks; morzer's documentation holds the rest. Maintainer
+          procedures (a dev VM's setup, CI runners, cutting a release, rehearsal,
+          registry housekeeping) are not in it
+      - subject: D-22
+        field: fingerprint
+        after: 1420add604965b02/5857d8d6dcd5bde0
+    md: >-
+      The repository is public, and its README had grown to 620 lines of operator
+      and maintainer detail: CI runners, the release procedure, the registry's
+      storage budget. It now holds an operator's quick start, and morzer's own
+      documentation the rest.
+  - id: A-20
+    at: '2026-11-05T10:00:35Z'
+    title: Postgres and PgBouncer hold less memory
     changes:
       - subject: D-5
         field: text
@@ -492,17 +522,14 @@ amendments:
         after: >-
           The backend, worker and bootstrap reach Postgres through `pgbouncer` (`POSTGRES__USE_PGBOUNCER:
           "true"`, `POSTGRES__PGBOUNCER_HOST: pgbouncer`, `POSTGRES__PGBOUNCER_PORT:
-          6432`), on the image's transaction pooling with a pool of 20 (`PGBOUNCER_CONF__default_pool_size`)
-          and its 10 in reserve. Postgres runs with glibc's `mmap_threshold` and `trim_threshold`
+          6432`), on the image's transaction pooling with its pool of 20 and 10 in
+          reserve. Postgres runs with the image's glibc `mmap_threshold` and `trim_threshold`
           at 128 KiB (`GLIBC_TUNABLES`), so a backend hands back what a query freed.
           `flyway` connects to `postgres` directly.
       - subject: D-5
         field: fingerprint
-        after: 65bb6bef4d38d929/3769111d435c5001
+        after: 40a3e11c2151ff64/3769111d435c5001
     md: >-
-      erp-backend's stress stack, the bundle's shape on 4 vCPU, measured Postgres's private
-      memory under 16 busy clients, in alternated 4-minute runs: 6.4–7.3 GiB with
-      glibc's defaults and the image's pool of 30, because each backend kept the most its
-      queries had ever allocated. With the tunables and a pool of 20 it was 2.1–2.3 GiB
-      at the same 34–35 requests a second. A pool of 12 held 1.2 GiB, but writes queued
-      behind each other and one run fell to 23 requests a second.
+      platform-images now ships both as defaults: Postgres with the two glibc
+      thresholds at 128 KiB, PgBouncer with a pool of 20. The bundle re-pins those
+      images and drops the settings it had set itself.

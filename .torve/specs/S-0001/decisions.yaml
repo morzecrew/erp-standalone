@@ -65,10 +65,10 @@ decisions:
     text: >-
       The backend, worker and bootstrap reach Postgres through `pgbouncer` (`POSTGRES__USE_PGBOUNCER:
       "true"`, `POSTGRES__PGBOUNCER_HOST: pgbouncer`, `POSTGRES__PGBOUNCER_PORT: 6432`),
-      on the image's transaction pooling with a pool of 20 (`PGBOUNCER_CONF__default_pool_size`)
-      and its 10 in reserve. Postgres runs with glibc's `mmap_threshold` and `trim_threshold`
-      at 128 KiB (`GLIBC_TUNABLES`), so a backend hands back what a query freed. `flyway`
-      connects to `postgres` directly.
+      on the image's transaction pooling with its pool of 20 and 10 in reserve. Postgres
+      runs with the image's glibc `mmap_threshold` and `trim_threshold` at 128 KiB
+      (`GLIBC_TUNABLES`), so a backend hands back what a query freed. `flyway` connects
+      to `postgres` directly.
     paths: [bundle/compose/compose.yaml]
     consequence: >-
       the backend runs in the topology erp-backend's e2e suite tests, and its processes'
@@ -79,7 +79,7 @@ decisions:
       an update hold up to 60 pool connections, which is all of `max_connections`;
       the pooler takes them all and opens at most 30. Flyway takes session locks,
       which transaction pooling breaks.
-    fingerprint: 65bb6bef4d38d929/3769111d435c5001
+    fingerprint: 40a3e11c2151ff64/3769111d435c5001
   - id: D-6
     grade: LOCKED
     text: >-
@@ -326,11 +326,15 @@ decisions:
   - id: D-22
     grade: ASSUMED
     text: >-
-      The README covers installing on a dev VM following `:main` and a customer VM
-      following `:stable`, updating, rolling back, backing up, and restoring Postgres
-      and Valkey together; setting the operator secrets; the ghcr login for root's
-      Docker; `backup.before_update=false` on the dev VM; and changing the database
-      password with `ALTER ROLE`. It recommends no image prune.
+      The README is an operator's quick start, short because the repository is public:
+      what the stack runs, the requirements, installing from `:stable` with root's
+      Docker logged in to ghcr, the one operator secret, the channels, the day-to-day
+      commands (status, doctor, logs, update, rollback, backup, restore, support)
+      and which failed updates recover by themselves, restoring whole backups only,
+      no image prune, rotating the database password, the assistant and the tasks;
+      morzer's documentation holds the rest. Maintainer procedures (a dev VM's setup,
+      CI runners, cutting a release, rehearsal, registry housekeeping) are not in
+      it
     paths: [/README.md, /CHANGELOG.md]
     consequence: >-
       an operator can run both channels from the README alone, and a manual prune
@@ -338,6 +342,7 @@ decisions:
     rationale: >-
       morzer 0.6.0 removes a pruned release's images and 0.5.0 prunes old pre-update
       backups, so the brief's weekly prune now only breaks rollback.
+    fingerprint: 1420add604965b02/5857d8d6dcd5bde0
   - id: D-23
     grade: OPEN
     text: >-
@@ -453,9 +458,9 @@ decisions:
       A third task beside D-26's two: `reset` (`service: reset`, `command: [seed]`,
       `args: true`, `modes: [dev]`, `timeout: 45m`) runs a Compose chain behind the
       `reset` profile — `reset-wipe` drops the `erp` database `WITH (FORCE)` and makes
-      it again, `reset-valkey` deletes every key but the realtime stream, `reset-migrate`
-      and `reset-bootstrap` are `flyway` and `bootstrap` again, and `reset` is the
-      bootstrap's image running the seed with the task's arguments
+      it again, `reset-valkey` deletes every key but the realtime stream,
+      `reset-migrate` and `reset-bootstrap` are `flyway` and `bootstrap` again, and
+      `reset` is the bootstrap's image running the seed with the task's arguments
     paths:
       - bundle/manifest.yaml
       - bundle/compose/compose.yaml
@@ -467,8 +472,8 @@ decisions:
       out; the admin and the demo users are made again
     rationale: >-
       The owner, 2026-11-04: reinstalling the bundle to get fresh demo data was the
-      manual step to avoid. erp-backend's number counters moved to Postgres for it,
-      so dropping the database starts them over; Valkey's stream keeps its consumer
+      manual step to avoid. erp-backend's number counters moved to Postgres for it, so
+      dropping the database starts them over; Valkey's stream keeps its consumer
       group, made only when the worker starts. bi-standalone's reset is the pattern.
     cites: [D-26]
 retired: [D-15]

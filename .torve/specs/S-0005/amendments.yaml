@@ -141,3 +141,27 @@ amendments:
       its reusable workflows and keeps only the callers, components.yaml and its smoke
       hooks. The tools' pins, morzer's among them, and the smoke task step are bundle-ci's;
       the task check is the hook `.github/smoke.d/10-task.sh`.
+  - id: A-8
+    at: '2026-11-05T09:21:37Z'
+    title: The README is a short quick start
+    changes:
+      - subject: D-4
+        field: text
+        before: >-
+          The README names morzer 0.8.0 as the minimum and drops 0.6.0's workarounds:
+          the `doctor`-printed pull of the volume helper (morzer#142), `systemctl
+          start` of the timers (morzer#139), the note that the dev VM's backup setting
+          is what lets an unattended tick install (morzer#134), and `init --repair`
+          after an import (morzer#135). Its "Upgrading morzer" says a machine upgrades
+          morzer before the next bundle, and that one set up under 0.6.0 runs `sudo
+          morzer init --repair` once, or reboots, if its timers never started.
+        after: The README names morzer 0.8.0 as the minimum.
+      - subject: D-4
+        field: fingerprint
+        before: 0a51e131c6f16056/f4289ae7acd4559a
+        after: 88cb04e62fccad6e/f4289ae7acd4559a
+    md: >-
+      The repository is public, and its README had grown to 620 lines of operator
+      and maintainer detail: CI runners, the release procedure, the registry's
+      storage budget. It now holds an operator's quick start, and morzer's own
+      documentation the rest.
