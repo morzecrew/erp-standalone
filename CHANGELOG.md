@@ -70,6 +70,10 @@ head of `main`; the first tagged release seals this section under its version.
   live event stream, and a `GET` to `/v1/realtime/events` skips the WAF (caddy
   2.11.8). Each open screen held about 1 MB at the edge, and 2,000 of them
   1.5–2.6 GB
+- Postgres hands memory back once a query frees it, and PgBouncer keeps 20
+  server connections, not 30: both are the re-pinned images' defaults now. Under
+  a steady load on a 4 vCPU, 4 GiB host, Postgres's private memory went from
+  6.4–7.3 GiB to 2.1–2.3 GiB at the same throughput
 - The bundle needs morzer 0.8.0 or later: a machine on an older manager refuses
   it, naming the version it needs.
 - Between two releases on one schema, `morzer rollback` returns to the previous

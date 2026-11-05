@@ -572,3 +572,30 @@ amendments:
       With no limit on the container, caddy set no Go memory limit, and the heap a
       burst of connections grew stayed. The WAF holds a request body of up to
       51 MiB while it inspects it, so the cap leaves room for a few uploads at once.
+  - id: A-23
+    at: '2026-11-05T12:44:36Z'
+    title: Postgres and PgBouncer hold less memory
+    changes:
+      - subject: D-5
+        field: text
+        before: >-
+          The backend, worker and bootstrap reach Postgres through `pgbouncer` (`POSTGRES__USE_PGBOUNCER:
+          "true"`, `POSTGRES__PGBOUNCER_HOST: pgbouncer`, `POSTGRES__PGBOUNCER_PORT:
+          6432`), on the image's transaction pooling and pool of 30. `flyway` connects
+          to `postgres` directly.
+        after: >-
+          The backend, worker and bootstrap reach Postgres through `pgbouncer` (`POSTGRES__USE_PGBOUNCER:
+          "true"`, `POSTGRES__PGBOUNCER_HOST: pgbouncer`, `POSTGRES__PGBOUNCER_PORT:
+          6432`), on the image's transaction pooling with its pool of 20 and 10 in
+          reserve. Postgres runs with the image's glibc `mmap_threshold` and `trim_threshold`
+          at 128 KiB (`GLIBC_TUNABLES`), so a backend hands back what a query freed.
+          `flyway` connects to `postgres` directly.
+      - subject: D-5
+        field: fingerprint
+        after: 40a3e11c2151ff64/3769111d435c5001
+    md: >-
+      platform-images now ships both as defaults: Postgres with the two glibc
+      thresholds at 128 KiB, PgBouncer with a pool of 20. The bundle re-pins those
+      images and drops the settings it had set itself. A 4-hour soak without the
+      thresholds held Postgres at 3.7–4.4 GiB against 1.6–2.1 with them, at the
+      same throughput.

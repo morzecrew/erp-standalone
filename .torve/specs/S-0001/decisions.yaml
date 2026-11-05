@@ -66,8 +66,10 @@ decisions:
     text: >-
       The backend, worker and bootstrap reach Postgres through `pgbouncer` (`POSTGRES__USE_PGBOUNCER:
       "true"`, `POSTGRES__PGBOUNCER_HOST: pgbouncer`, `POSTGRES__PGBOUNCER_PORT: 6432`),
-      on the image's transaction pooling and pool of 30. `flyway` connects to `postgres`
-      directly.
+      on the image's transaction pooling with its pool of 20 and 10 in reserve. Postgres
+      runs with the image's glibc `mmap_threshold` and `trim_threshold` at 128 KiB
+      (`GLIBC_TUNABLES`), so a backend hands back what a query freed. `flyway` connects
+      to `postgres` directly.
     paths: [bundle/compose/compose.yaml]
     consequence: >-
       the backend runs in the topology erp-backend's e2e suite tests, and its processes'
@@ -78,6 +80,7 @@ decisions:
       an update hold up to 60 pool connections, which is all of `max_connections`;
       the pooler takes them all and opens at most 30. Flyway takes session locks,
       which transaction pooling breaks.
+    fingerprint: 40a3e11c2151ff64/3769111d435c5001
   - id: D-6
     grade: LOCKED
     text: >-
