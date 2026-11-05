@@ -154,7 +154,9 @@ decisions:
     text: >-
       The edge serves `${ERP_DOMAIN:-:80}, :8081` with `CADDY_AUTO_HTTPS: "on"`, publishes
       `http_port` on 80, `https_port` on 443 and `health_port` on loopback 8081, and
-      keeps certificates in the `edge-data` volume.
+      keeps certificates in the `edge-data` volume. Its memory is capped at 1 GiB
+      (`deploy.resources.limits.memory: 1g`), from which the caddy image sets `GOMEMLIMIT`
+      to 90%.
     paths: [bundle/compose/compose.yaml]
     consequence: >-
       with `--domain`, HTTPS on the domain and HTTP redirected to it; without one,
@@ -164,6 +166,7 @@ decisions:
       The auth cookies are `Secure`, so a browser signs in only over HTTPS. The caddy
       image's `on` leaves automatic HTTPS on (platform-images #69). Losing `edge-data`
       means a new certificate and Let's Encrypt's rate limits.
+    fingerprint: 2a316355f05c549e/3769111d435c5001
   - id: D-11
     grade: ASSUMED
     text: >-
