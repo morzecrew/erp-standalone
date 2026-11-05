@@ -213,6 +213,10 @@ services:
       CADDY_REQUEST_BODY_MAX_SIZE: 51MiB
       # Logs what CRS would refuse and blocks nothing, until it is tuned.
       CADDY_WAF_ENGINE: DetectionOnly
+      # A GET to the open screens' event stream skips the WAF: it carries no body,
+      # and the WAF held each stream's transaction for as long as it stayed open,
+      # about 0.75 MB a screen. Any other method to it is still inspected.
+      CADDY_WAF_SKIP_PATHS: /v1/realtime/events
     ports:
       - "${ERP_PARAM_HTTP_PORT:-80}:80"
       - "${ERP_PARAM_HTTPS_PORT:-443}:443"
