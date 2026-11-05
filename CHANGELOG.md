@@ -12,6 +12,9 @@ head of `main`; the first tagged release seals this section under its version.
 
 ### Added
 
+- A generated `state_mac_key`, which signs the session states the backend
+  caches in Valkey: a request's session is checked there instead of in
+  Postgres. `morzer update` generates it on an existing machine
 - The `erp` release bundle — a morzer `application-release`
   (`selfhost/v1alpha1`, morzer 0.8.0 or later) that deploys the whole ERP on one
   Linux machine: `erp-backend` (API and worker), `erp-frontend`, Postgres 18.6

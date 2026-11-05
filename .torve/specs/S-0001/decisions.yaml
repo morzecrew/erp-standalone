@@ -121,8 +121,8 @@ decisions:
   - id: D-8
     grade: ASSUMED
     text: >-
-      `valkey_password` is generated (`password`); `access_secret_key`, `refresh_pepper`
-      and `api_key_pepper` are generated `base64` of 32 bytes; `postgres_password`
+      `valkey_password` is generated (`password`); `access_secret_key`, `refresh_pepper`,
+      `api_key_pepper` and `state_mac_key` are generated `base64` of 32 bytes; `postgres_password`
       and `rustfs_secret_key` are generated `password` of 32 (S-0003/D-1); `assistant_api_key`
       is generated `password` of 32, a placeholder the operator replaces with the
       endpoint's key to turn the assistant on; `admin_password` is set by the operator.
@@ -136,7 +136,7 @@ decisions:
       morzer's `base64` length is the count of random bytes, StdEncoding, which the
       backend's `b64decode(validate=True)` reads. Postgres reads its password file
       only at initdb.
-    fingerprint: 4e4d8060e81c4c8a/a42b45ae3c100f0f
+    fingerprint: 1874ec7646a36034/a42b45ae3c100f0f
   - id: D-9
     grade: ASSUMED
     text: >-

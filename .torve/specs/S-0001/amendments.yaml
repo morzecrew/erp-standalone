@@ -599,3 +599,33 @@ amendments:
       images and drops the settings it had set itself. A 4-hour soak without the
       thresholds held Postgres at 3.7–4.4 GiB against 1.6–2.1 with them, at the
       same throughput.
+  - id: A-24
+    at: '2026-11-05T13:31:16Z'
+    title: A generated key signs the session states
+    changes:
+      - subject: D-8
+        field: text
+        before: >-
+          `valkey_password` is generated (`password`); `access_secret_key`, `refresh_pepper`
+          and `api_key_pepper` are generated `base64` of 32 bytes; `postgres_password`
+          and `rustfs_secret_key` are generated `password` of 32 (S-0003/D-1); `assistant_api_key`
+          is generated `password` of 32, a placeholder the operator replaces with
+          the endpoint's key to turn the assistant on; `admin_password` is set by
+          the operator. `api_key_pepper` and `postgres_password` have no `rotation_period`.
+        after: >-
+          `valkey_password` is generated (`password`); `access_secret_key`, `refresh_pepper`,
+          `api_key_pepper` and `state_mac_key` are generated `base64` of 32 bytes;
+          `postgres_password` and `rustfs_secret_key` are generated `password` of
+          32 (S-0003/D-1); `assistant_api_key` is generated `password` of 32, a placeholder
+          the operator replaces with the endpoint's key to turn the assistant on;
+          `admin_password` is set by the operator. `api_key_pepper` and `postgres_password`
+          have no `rotation_period`.
+      - subject: D-8
+        field: fingerprint
+        before: 4e4d8060e81c4c8a/a42b45ae3c100f0f
+        after: 1874ec7646a36034/a42b45ae3c100f0f
+    md: >-
+      erp-backend checks a request's session against signed states in Valkey when
+      `AUTH__STATE_MAC_KEY_B64` is set (erp-backend#239). The bundle generates that
+      key like the peppers; morzer 0.8.0's `update` generates it on a machine that
+      predates it.

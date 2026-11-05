@@ -34,6 +34,7 @@ x-backend-environment: &backend-environment
   AUTH__ACCESS_SECRET_KEY_B64_FILE: /run/secrets/access_secret_key
   AUTH__REFRESH_PEPPER_B64_FILE: /run/secrets/refresh_pepper
   AUTH__API_KEY_PEPPER_B64_FILE: /run/secrets/api_key_pepper
+  AUTH__STATE_MAC_KEY_B64_FILE: /run/secrets/state_mac_key
   # One origin: the edge serves the API and the frontend together, so there is
   # no cross-origin caller to allow and no cookie domain to widen.
   AUTH__COOKIE_DOMAIN: ""
@@ -169,6 +170,7 @@ services:
       - access_secret_key
       - refresh_pepper
       - api_key_pepper
+      - state_mac_key
       - assistant_api_key
     depends_on: *backend-depends-on
     healthcheck:
@@ -295,6 +297,7 @@ services:
       - access_secret_key
       - refresh_pepper
       - api_key_pepper
+      - state_mac_key
       - assistant_api_key
       - admin_password
     depends_on: *backend-depends-on
@@ -396,6 +399,8 @@ secrets:
     file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/refresh_pepper
   api_key_pepper:
     file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/api_key_pepper
+  state_mac_key:
+    file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/state_mac_key
   assistant_api_key:
     file: ${ERP_SECRETS_DIR:-/run/erp/secrets}/assistant_api_key
   admin_password:
