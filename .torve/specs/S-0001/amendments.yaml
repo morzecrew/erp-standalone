@@ -501,7 +501,7 @@ amendments:
         after: a194fe92846d874d/3769111d435c5001
     md: >-
       erp-backend's stress stack, the bundle's shape on 4 vCPU, measured Postgres's private
-      memory under 16 busy clients for six minutes: 6.4 GB with glibc's defaults and
+      memory under 16 busy clients for six minutes: 6.8 GB with glibc's defaults and
       the image's pool of 30, because each backend kept the most its queries had
       ever allocated. With the tunables it was 2.6 GB, and with a pool of 12 as well,
       1.4 GB, at the same throughput.

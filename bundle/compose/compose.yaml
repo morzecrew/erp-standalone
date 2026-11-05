@@ -65,7 +65,7 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       # A large allocation is mapped, and handed back once freed. With glibc's
       # defaults each backend kept the most its queries had ever used, about
-      # 235 MB, and 30 pooled backends held 6.4 GB on a 4 GiB host. With these,
+      # 235 MB, and 30 pooled backends held 6.8 GB on a 4 GiB host. With these,
       # 1.4 GB together with the pool below, at the same throughput.
       GLIBC_TUNABLES: glibc.malloc.mmap_threshold=131072:glibc.malloc.trim_threshold=131072
       # The image's small-instance settings.
