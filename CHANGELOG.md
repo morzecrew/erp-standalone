@@ -64,9 +64,9 @@ head of `main`; the first tagged release seals this section under its version.
 ### Changed
 
 - Postgres hands memory back once a query frees it (glibc's `mmap_threshold`
-  and `trim_threshold` at 128 KiB), and PgBouncer keeps 12 server connections,
+  and `trim_threshold` at 128 KiB), and PgBouncer keeps 20 server connections,
   not 30. Under a steady load on a 4 vCPU, 4 GiB host, Postgres's private
-  memory went from 6.8 GB to 1.4 GB at the same throughput
+  memory went from 6.4–7.3 GiB to 2.1–2.3 GiB at the same throughput
 
 - The bundle needs morzer 0.8.0 or later: a machine on an older manager refuses
   it, naming the version it needs.

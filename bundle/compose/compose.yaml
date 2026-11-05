@@ -64,9 +64,9 @@ services:
       POSTGRES_DB: erp
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       # A large allocation is mapped, and handed back once freed. With glibc's
-      # defaults each backend kept the most its queries had ever used, about
-      # 235 MB, and 30 pooled backends held 6.8 GB on a 4 GiB host. With these,
-      # 1.4 GB together with the pool below, at the same throughput.
+      # defaults each backend kept the most its queries had ever used, and 30
+      # pooled backends held 6.4–7.3 GiB on a 4 GiB host under a steady load.
+      # With these and the pool of 20 below, 2.1–2.3 GiB at the same throughput.
       GLIBC_TUNABLES: glibc.malloc.mmap_threshold=131072:glibc.malloc.trim_threshold=131072
       # The image's small-instance settings.
       PG_CONF__shared_buffers: 128MB
@@ -103,10 +103,10 @@ services:
       PGBOUNCER_CONF__server_login_retry: 1
       PGBOUNCER_CONF__dns_max_ttl: 1
       PGBOUNCER_CONF__dns_nxdomain_ttl: 1
-      # 12 server connections, not the image's 30: the host's cores bound what
-      # Postgres runs at once, and each idle backend still holds its caches.
-      # The 10 in reserve still open past a 5 s wait.
-      PGBOUNCER_CONF__default_pool_size: 12
+      # 20 server connections, not the image's 30: each idle backend still holds
+      # its caches. At 12, writes queued behind each other and throughput fell
+      # by a fifth; at 20 it held. The 10 in reserve open past a 5 s wait.
+      PGBOUNCER_CONF__default_pool_size: 20
     secrets:
       - postgres_password
     depends_on:

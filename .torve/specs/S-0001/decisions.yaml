@@ -65,7 +65,7 @@ decisions:
     text: >-
       The backend, worker and bootstrap reach Postgres through `pgbouncer` (`POSTGRES__USE_PGBOUNCER:
       "true"`, `POSTGRES__PGBOUNCER_HOST: pgbouncer`, `POSTGRES__PGBOUNCER_PORT: 6432`),
-      on the image's transaction pooling with a pool of 12 (`PGBOUNCER_CONF__default_pool_size`)
+      on the image's transaction pooling with a pool of 20 (`PGBOUNCER_CONF__default_pool_size`)
       and its 10 in reserve. Postgres runs with glibc's `mmap_threshold` and `trim_threshold`
       at 128 KiB (`GLIBC_TUNABLES`), so a backend hands back what a query freed. `flyway`
       connects to `postgres` directly.
@@ -79,7 +79,7 @@ decisions:
       an update hold up to 60 pool connections, which is all of `max_connections`;
       the pooler takes them all and opens at most 30. Flyway takes session locks,
       which transaction pooling breaks.
-    fingerprint: a194fe92846d874d/3769111d435c5001
+    fingerprint: 65bb6bef4d38d929/3769111d435c5001
   - id: D-6
     grade: LOCKED
     text: >-

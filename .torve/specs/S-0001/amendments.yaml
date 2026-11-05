@@ -479,8 +479,8 @@ amendments:
       the callers pin its commit with `# v0.1.1` beside it and pass no `bundle-ci-ref`.
       Renovate's github-actions manager moves the pin and its comment together.
   - id: A-19
-    at: '2026-11-05T00:46:50Z'
-    title: A pool of 12, and Postgres hands memory back
+    at: '2026-11-05T02:02:40Z'
+    title: A pool of 20, and Postgres hands memory back
     changes:
       - subject: D-5
         field: text
@@ -492,16 +492,17 @@ amendments:
         after: >-
           The backend, worker and bootstrap reach Postgres through `pgbouncer` (`POSTGRES__USE_PGBOUNCER:
           "true"`, `POSTGRES__PGBOUNCER_HOST: pgbouncer`, `POSTGRES__PGBOUNCER_PORT:
-          6432`), on the image's transaction pooling with a pool of 12 (`PGBOUNCER_CONF__default_pool_size`)
+          6432`), on the image's transaction pooling with a pool of 20 (`PGBOUNCER_CONF__default_pool_size`)
           and its 10 in reserve. Postgres runs with glibc's `mmap_threshold` and `trim_threshold`
           at 128 KiB (`GLIBC_TUNABLES`), so a backend hands back what a query freed.
           `flyway` connects to `postgres` directly.
       - subject: D-5
         field: fingerprint
-        after: a194fe92846d874d/3769111d435c5001
+        after: 65bb6bef4d38d929/3769111d435c5001
     md: >-
       erp-backend's stress stack, the bundle's shape on 4 vCPU, measured Postgres's private
-      memory under 16 busy clients for six minutes: 6.8 GB with glibc's defaults and
-      the image's pool of 30, because each backend kept the most its queries had
-      ever allocated. With the tunables it was 2.6 GB, and with a pool of 12 as well,
-      1.4 GB, at the same throughput.
+      memory under 16 busy clients, in alternated 4-minute runs: 6.4–7.3 GiB with
+      glibc's defaults and the image's pool of 30, because each backend kept the most its
+      queries had ever allocated. With the tunables and a pool of 20 it was 2.1–2.3 GiB
+      at the same 34–35 requests a second. A pool of 12 held 1.2 GiB, but writes queued
+      behind each other and one run fell to 23 requests a second.
