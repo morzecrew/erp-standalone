@@ -59,10 +59,11 @@ head of `main`; the first tagged release seals this section under its version.
 - The frontend's sidebar names the release a machine runs, for example
   `v0.0.1-dev.37.g311d7ec`, with the frontend's and the backend's builds in its
   tooltip.
-- A `reset` task for a dev machine: `morzer task run reset -- --size m --seed
-  acme` drops the database and makes it again, deletes Valkey's keys but the
-  realtime stream, then migrates, bootstraps and seeds, without reinstalling.
-  The secrets, the settings, the certificates and RustFS's files stay
+- A `reset` task for a dev machine: `morzer task run reset` drops the database
+  and makes it again, deletes Valkey's keys but the realtime stream, then
+  migrates and bootstraps, without reinstalling, and leaves it empty but for the
+  catalogs and the admin; `morzer task run seed -- --size m` fills it with demo
+  data. The secrets, the settings, the certificates and RustFS's files stay
 
 ### Changed
 

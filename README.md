@@ -86,8 +86,8 @@ sudo morzer config set assistant_base_url=https://<host>/v1 assistant_model=<mod
 ## Tasks
 
 `sudo morzer task list` shows them: `repair` returns stock held by closed plans,
-and on a dev machine `seed` and `reset` fill or restart the database with demo
-data.
+and on a dev machine `reset` starts the database over, empty but for the
+catalogs and the admin, and `seed` fills an empty one with demo data.
 
 See [morzer's documentation](https://morzecrew.github.io/morzer/) for backup
 targets, recovering a lost machine and everything else the manager does.

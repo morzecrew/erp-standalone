@@ -629,3 +629,18 @@ amendments:
       `AUTH__STATE_MAC_KEY_B64` is set (erp-backend#239). The bundle generates that
       key like the peppers; morzer 0.8.0's `update` generates it on a machine that
       predates it.
+  - id: A-25
+    at: '2026-11-06T06:40:52Z'
+    title: Reset leaves the database empty
+    changes:
+      - subject: D-30
+        field: retired
+        before: >-
+          bundle/manifest.yaml bundle/compose/compose.yaml .github/smoke.d/40-reset.sh
+        after: >-
+          Superseded by D-31: reset bootstraps and no longer seeds
+    md: >-
+      The reset ran the seed after the bootstrap, so a dev machine could not be
+      emptied for real data, a 1C workbook's import, without the demo company in it.
+      D-31 keeps the chain and ends it at the bootstrap; `seed` fills an empty
+      database on its own.
