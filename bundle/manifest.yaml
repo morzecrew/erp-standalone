@@ -138,16 +138,16 @@ tasks:
     modes: [dev]
     timeout: 30m
   # Drops the database, deletes Valkey's keys but the realtime stream, then
-  # migrates, bootstraps and seeds as a first apply and `seed` would. A task runs
-  # in a container, not on the host, so it cannot remove volumes; the secrets,
-  # the settings, the certificates and RustFS's files stay.
+  # migrates and bootstraps as a first apply would, and leaves it empty: `seed`
+  # fills it when wanted. A task runs in a container, not on the host, so it
+  # cannot remove volumes; the secrets, the settings, the certificates and
+  # RustFS's files stay.
   reset:
-    description: "Drop every record, migrate and bootstrap again, then seed (-- --size s|m|l --seed TEXT --months N); secrets and settings stay"
+    description: "Drop every record, migrate and bootstrap again, leaving the database empty; secrets and settings stay"
     service: reset
-    command: [seed]
-    args: true
+    command: [bootstrap]
     modes: [dev]
-    timeout: 45m
+    timeout: 15m
   repair:
     description: Give back to free stock what closed or deleted plans still hold
     service: backend

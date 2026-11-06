@@ -304,9 +304,10 @@ services:
 
   # A dev machine's fresh start, by `morzer task run reset`: the task runs `reset`,
   # and Compose runs the chain before it — the database dropped and made again,
-  # every Valkey key but the realtime stream deleted, the migrations, the
-  # bootstrap, then the seed with the task's arguments, as a first apply and a
-  # `seed` would. The backend and worker keep running: FORCE ends their sessions,
+  # every Valkey key but the realtime stream deleted, the migrations, then the
+  # bootstrap, as a first apply would. The database is left empty but for the
+  # catalogs and the admin: `morzer task run seed` fills it with demo data when
+  # wanted. The backend and worker keep running: FORCE ends their sessions,
   # their pools reconnect to the new database, and the worker's stream group stays.
   # pg_cron's launcher, ended with the database, restarts by itself and finds its
   # jobs once the migrations made them again. Files in RustFS stay, no record
@@ -361,7 +362,8 @@ services:
       reset-valkey:
         condition: service_completed_successfully
 
-  reset-bootstrap:
+  # The bootstrap again: the catalogs, and the admin from its secret.
+  reset:
     <<: *bootstrap
     profiles: [reset]
     depends_on:
@@ -370,15 +372,6 @@ services:
       rustfs:
         condition: service_healthy
       reset-migrate:
-        condition: service_completed_successfully
-
-  # The seed, its demo users signing in with the admin's password.
-  reset:
-    <<: *bootstrap
-    profiles: [reset]
-    command: ["seed"]
-    depends_on:
-      reset-bootstrap:
         condition: service_completed_successfully
 
 configs:

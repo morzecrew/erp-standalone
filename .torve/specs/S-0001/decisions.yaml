@@ -459,28 +459,27 @@ decisions:
       reached it).
     cites: [D-15, D-16, D-28]
     fingerprint: 0af9e0176ca0c859/191ac44710bb590d
-  - id: D-30
+  - id: D-31
     grade: ASSUMED
     text: >-
-      A third task beside D-26's two: `reset` (`service: reset`, `command: [seed]`,
-      `args: true`, `modes: [dev]`, `timeout: 45m`) runs a Compose chain behind the
-      `reset` profile — `reset-wipe` drops the `erp` database `WITH (FORCE)` and makes
-      it again, `reset-valkey` deletes every key but the realtime stream,
-      `reset-migrate` and `reset-bootstrap` are `flyway` and `bootstrap` again, and
-      `reset` is the bootstrap's image running the seed with the task's arguments
+      `reset` leaves the database empty (owner, 2026-11-06): the task (`service: reset`,
+      `command: [bootstrap]`, no arguments, `modes: [dev]`, `timeout: 15m`) runs the
+      `reset` profile's chain — `reset-wipe` drops the `erp` database `WITH (FORCE)`
+      and makes it again, `reset-valkey` deletes every key but the realtime stream,
+      `reset-migrate` is `flyway` again — and `reset` is the bootstrap again, the
+      catalogs and the admin. Demo data is `seed`'s, run after it
     paths:
       - bundle/manifest.yaml
       - bundle/compose/compose.yaml
       - .github/smoke.d/40-reset.sh
     consequence: >-
-      a dev machine starts over without reinstalling: the secrets, the settings, the
-      certificates and RustFS's files stay, and the backend and worker keep running,
-      their pools reconnecting and the worker's stream group kept. Everyone is signed
-      out; the admin and the demo users are made again
+      a dev machine starts over empty without reinstalling, ready for a pilot's import
+      or for `seed`: the secrets, the settings, the certificates and RustFS's files
+      stay, and the backend and worker keep running, their pools reconnecting and
+      the worker's stream group kept. Everyone is signed out; the admin is made again
     rationale: >-
-      The owner, 2026-11-04: reinstalling the bundle to get fresh demo data was the
-      manual step to avoid. erp-backend's number counters moved to Postgres for it, so
-      dropping the database starts them over; Valkey's stream keeps its consumer
-      group, made only when the worker starts. bi-standalone's reset is the pattern.
-    cites: [D-26]
-retired: [D-15]
+      Reset seeded the demo history after the bootstrap, so a machine could not be
+      emptied for real data, a 1C workbook's import, without the demo company in it.
+      `seed` already fills an empty database on its own.
+    cites: [D-30]
+retired: [D-15, D-30]
