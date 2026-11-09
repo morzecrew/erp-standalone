@@ -163,6 +163,8 @@ services:
     environment:
       <<: *backend-environment
       API__WORKERS: ${ERP_PARAM_API_WORKERS:-2}
+      # Only the API serves the scrape; the worker's metrics would reach nobody.
+      APP__TELEMETRY: ${ERP_PARAM_TELEMETRY:-off}
     secrets: &backend-secrets
       - postgres_password
       - valkey_password

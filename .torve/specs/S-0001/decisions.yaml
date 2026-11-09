@@ -142,7 +142,8 @@ decisions:
     text: >-
       `edge` is the only service that publishes ports. `bundle/edge/erp.caddy`, mounted
       into the caddy image's `config.d`, sends `/v1`, `/v1/*`, `/mcp`, `/mcp/*`, `/health`
-      and `/.well-known/oauth-protected-resource*` to `backend:8000`, and everything
+      and `/.well-known/oauth-protected-resource*` to `backend:8000`, `/metrics` to
+      `backend:8000` only on the loopback health listener (`:8081`), and everything
       else to `frontend:8080`. `AUTH__COOKIE_DOMAIN` is empty and `AUTH__ALLOWED_ORIGINS`
       is `[]`.
     paths: [bundle/edge/**, bundle/compose/compose.yaml]
@@ -152,6 +153,7 @@ decisions:
     rationale: >-
       The frontend calls its own origin when `VITE_BACKEND_HOST` is unset. erp-gateway
       proxies only to the backend, so it cannot be the edge.
+    fingerprint: 786793630ad2f10e/a085d80d79a871aa
   - id: D-10
     grade: ASSUMED
     text: >-
@@ -377,7 +379,8 @@ decisions:
     text: >-
       The parameters are `http_port` (80), `https_port` (443) and `health_port` (8081)
       for `edge`, `api_workers` (2) for `backend`, `log_level` (`debug`, `info`, `warning`,
-      `error`; `info`) for `backend` and `worker`, and the assistant's `assistant_enabled`
+      `error`; `info`) for `backend` and `worker`, `telemetry` (`off`, `prometheus`;
+      `off`) for `backend` only, as `APP__TELEMETRY`, and the assistant's `assistant_enabled`
       (`false`), `assistant_base_url` (`https://api.deepseek.com`) and `assistant_model`
       (`deepseek-flash`) for `backend` and `worker`.
     paths: [bundle/manifest.yaml]
@@ -385,7 +388,7 @@ decisions:
       changing a port re-creates the edge alone, and the health checks follow the
       health port
     rationale: Each API worker takes about 300 MB.
-    fingerprint: 074ad7b741624e6b/b6b3b43e2ac1f7b1
+    fingerprint: 8df9f4c5ff81b5f2/b6b3b43e2ac1f7b1
   - id: D-26
     grade: ASSUMED
     text: >-
