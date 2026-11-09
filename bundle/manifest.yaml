@@ -95,7 +95,7 @@ images:
   rustfs: ghcr.io/morzecrew/rustfs:1.0.4@sha256:70a17071fedd76f2d5378b1226825f43e03c28d14b8d844d1c8b1e41dec67a73
   flyway: ghcr.io/morzecrew/flyway:13.11@sha256:c9802bd2a962f5ec7980b5f483ecdeb959aae14a332c1f73df305854ce795014
   caddy: ghcr.io/morzecrew/caddy:2.11.8@sha256:609dc9e8ba019cd911efb1ad3c269ed3b8d8acf4cfb04c213ff30ce0773e9aab
-  backend: ghcr.io/morzecrew/erp-backend:main@sha256:07ad0938cff666efbe14e00bf06af5402d7b3c6855fcf529476214aabd99b6fa
+  backend: ghcr.io/morzecrew/erp-backend:main@sha256:9cd2570e8e34d073e90a4cb2ec306b338dcc249044fca234c2e6dd5e4c54ee16
   migrations: ghcr.io/morzecrew/erp-migrations:main@sha256:680375718b15a5d5c644a3d79166fd83a63c5cbe1fb2297edb8317859fa6e958
   frontend: ghcr.io/morzecrew/erp-frontend:main@sha256:a3820fa83abbad0edfa74756580056f3f234d4ceb6be989109baf1c371429f17
 secrets:
