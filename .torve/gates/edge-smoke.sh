@@ -75,6 +75,13 @@ for path in / /plans /assets/index.js; do
 	expect "${path}" frontend
 done
 
+# The backend's Prometheus scrape answers on the loopback health listener only;
+# on the public port /metrics is the frontend's.
+expect /metrics backend
+got="$(curl -fsS --max-time 10 "http://127.0.0.1:${ERP_PARAM_HTTP_PORT:?}/metrics")"
+[ "${got}" = frontend ] || { echo "edge-smoke: public /metrics answered '${got}', not 'frontend'" >&2; exit 1; }
+echo "edge-smoke: public /metrics -> frontend"
+
 # A 50 MiB attachment reaches the backend; one past 51 MiB is refused at the
 # edge. Sent as a multipart upload, as the frontend sends attachments, and with
 # no `Expect: 100-continue`, which curl sends past 1 MiB and CRS refuses.

@@ -12,6 +12,9 @@ head of `main`; the first tagged release seals this section under its version.
 
 ### Added
 
+- A `telemetry` parameter: `prometheus` has the backend serve its metrics,
+  every API worker in one scrape, at `/metrics` on the loopback health port.
+  Off by default
 - A generated `state_mac_key`, which signs the session states the backend
   caches in Valkey: a request's session is checked there instead of in
   Postgres. `morzer update` generates it on an existing machine

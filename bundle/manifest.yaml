@@ -63,6 +63,12 @@ parameters:
     default: info
     description: Log verbosity of the backend and the worker
     services: [backend, worker]
+  telemetry:
+    type: enum
+    values: ["off", prometheus]
+    default: "off"
+    description: With prometheus, the backend serves its metrics at /metrics on the health port
+    services: [backend]
   assistant_enabled:
     type: bool
     default: false

@@ -644,3 +644,58 @@ amendments:
       emptied for real data, a 1C workbook's import, without the demo company in it.
       D-31 keeps the chain and ends it at the bootstrap; `seed` fills an empty
       database on its own.
+  - id: A-26
+    at: '2026-11-09T20:01:28Z'
+    title: >-
+      A telemetry parameter for the backend's Prometheus scrape
+    changes:
+      - subject: D-25
+        field: text
+        before: >-
+          The parameters are `http_port` (80), `https_port` (443) and `health_port`
+          (8081) for `edge`, `api_workers` (2) for `backend`, `log_level` (`debug`,
+          `info`, `warning`, `error`; `info`) for `backend` and `worker`, and the
+          assistant's `assistant_enabled` (`false`), `assistant_base_url` (`https://api.deepseek.com`)
+          and `assistant_model` (`deepseek-flash`) for `backend` and `worker`.
+        after: >-
+          The parameters are `http_port` (80), `https_port` (443) and `health_port`
+          (8081) for `edge`, `api_workers` (2) for `backend`, `log_level` (`debug`,
+          `info`, `warning`, `error`; `info`) for `backend` and `worker`, `telemetry`
+          (`off`, `prometheus`; `off`) for `backend` only, as `APP__TELEMETRY`, and
+          the assistant's `assistant_enabled` (`false`), `assistant_base_url` (`https://api.deepseek.com`)
+          and `assistant_model` (`deepseek-flash`) for `backend` and `worker`.
+      - subject: D-25
+        field: fingerprint
+        before: 074ad7b741624e6b/b6b3b43e2ac1f7b1
+        after: 8df9f4c5ff81b5f2/b6b3b43e2ac1f7b1
+    md: >-
+      The backend can serve every API worker's metrics in one Prometheus scrape, for
+      a host with a Prometheus and no collector. The worker keeps telemetry off: it
+      runs in a container of its own, and nothing would read its metrics.
+  - id: A-27
+    at: '2026-11-09T20:01:41Z'
+    title: >-
+      The health listener routes /metrics to the backend
+    changes:
+      - subject: D-9
+        field: text
+        before: >-
+          `edge` is the only service that publishes ports. `bundle/edge/erp.caddy`,
+          mounted into the caddy image's `config.d`, sends `/v1`, `/v1/*`, `/mcp`,
+          `/mcp/*`, `/health` and `/.well-known/oauth-protected-resource*` to `backend:8000`,
+          and everything else to `frontend:8080`. `AUTH__COOKIE_DOMAIN` is empty and
+          `AUTH__ALLOWED_ORIGINS` is `[]`.
+        after: >-
+          `edge` is the only service that publishes ports. `bundle/edge/erp.caddy`,
+          mounted into the caddy image's `config.d`, sends `/v1`, `/v1/*`, `/mcp`,
+          `/mcp/*`, `/health` and `/.well-known/oauth-protected-resource*` to `backend:8000`,
+          `/metrics` to `backend:8000` only on the loopback health listener (`:8081`),
+          and everything else to `frontend:8080`. `AUTH__COOKIE_DOMAIN` is empty and
+          `AUTH__ALLOWED_ORIGINS` is `[]`.
+      - subject: D-9
+        field: fingerprint
+        after: 786793630ad2f10e/a085d80d79a871aa
+    md: >-
+      The scrape is for a Prometheus on the same machine, so only the listener the
+      bundle publishes on loopback serves it; on the public ports `/metrics` stays
+      the frontend's.

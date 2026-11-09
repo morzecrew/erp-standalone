@@ -83,6 +83,16 @@ sudo morzer config set assistant_enabled=true
 sudo morzer config set assistant_base_url=https://<host>/v1 assistant_model=<model>
 ```
 
+## Metrics
+
+With `telemetry=prometheus` the backend serves its metrics, all API workers in
+one scrape, at `http://127.0.0.1:8081/metrics`: on the loopback health port
+only, for a Prometheus on the same machine.
+
+```console
+sudo morzer config set telemetry=prometheus
+```
+
 ## Tasks
 
 `sudo morzer task list` shows them: `repair` returns stock held by closed plans,
